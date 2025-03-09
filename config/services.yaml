@@ -4,8 +4,12 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
-
+    gallery_upload_dir: '%env(resolve:GALLERY_UPLOAD_DIR)%'
+    gallery_max_per_page: 50
 services:
+    App\EventSubscriber\AssertionExceptionSubscriber:
+        tags:
+            - { name: kernel.event_subscriber }
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
@@ -20,5 +24,9 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    App\Controller\GalleryController:
+        tags: ['controller.service_arguments']
+        arguments:
+            $galleryUploadDir: '%gallery_upload_dir%'
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
