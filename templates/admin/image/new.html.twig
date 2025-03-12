@@ -1,0 +1,69 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}New Image{% endblock %}
+
+{% block body %}
+    <div class="container">
+        {# Шапка с кнопкой "Back to list" #}
+        <header class="d-flex justify-content-between align-items-center mb-4 py-3 border-bottom">
+            <h1 class="h3 mb-0">Create New Image</h1>
+            <a href="{{ path('admin_image_index') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to list
+            </a>
+        </header>
+
+        {# Карточка для формы #}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                {{ form_start(form, {'attr': {'class': 'needs-validation', 'novalidate': 'novalidate'}}) }}
+                {# Поле "Parent Image" #}
+                <div class="mb-3">
+                    {{ form_label(form.parentId, 'Parent Image', {'label_attr': {'class': 'form-label'}}) }}
+                    {{ form_widget(form.parentId, {'attr': {'class': 'form-select'}}) }}
+                    {{ form_errors(form.parentId) }}
+                </div>
+
+                {# Поле "Videos" #}
+                <div class="mb-3">
+                    {{ form_label(form.videos, 'Videos', {'label_attr': {'class': 'form-label'}}) }}
+                    {{ form_widget(form.videos, {'attr': {'class': 'form-select'}}) }}
+                    {{ form_errors(form.videos) }}
+                </div>
+
+                {# Поле "Filename" #}
+                <div class="mb-3">
+                    {{ form_label(form.filename, 'Image File', {'label_attr': {'class': 'form-label'}}) }}
+                    {{ form_widget(form.filename, {'attr': {'class': 'form-control'}}) }}
+                    {{ form_errors(form.filename) }}
+                </div>
+
+                {# Поле "Description" #}
+                <div class="mb-3">
+                    {{ form_label(form.description, 'Description', {'label_attr': {'class': 'form-label'}}) }}
+                    {{ form_widget(form.description, {'attr': {'class': 'form-control', 'rows': 3}}) }}
+                    {{ form_errors(form.description) }}
+                </div>
+
+                {# Кнопка "Save" #}
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save
+                </button>
+
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            form.addEventListener('submit', function() {
+                const submitButton = form.querySelector('button[type="submit"]');
+                submitButton.disabled = true; // Отключаем кнопку
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; // Добавляем индикатор загрузки
+            });
+        });
+    </script>
+{% endblock %}

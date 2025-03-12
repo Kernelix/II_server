@@ -16,28 +16,54 @@ class ImageRepository extends ServiceEntityRepository
         parent::__construct($registry, Image::class);
     }
 
-    //    /**
-    //     * @return Image[] Returns an array of Image objects
-    //     */
-    //    public function findByExampleField($value): array
-    //    {
-    //        return $this->createQueryBuilder('i')
-    //            ->andWhere('i.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->orderBy('i.id', 'ASC')
-    //            ->setMaxResults(10)
-    //            ->getQuery()
-    //            ->getResult()
-    //        ;
-    //    }
+    /**
+     * Возвращает все изображения с их видео.
+     *
+     * @return Image[]
+     */
+    public function findAllWithVideos(): array
+    {
+        return $this->createQueryBuilder('i')
+            ->leftJoin('i.videos', 'v')
+            ->addSelect('v')
+            ->getQuery()
+            ->getResult();
+    }
 
-    //    public function findOneBySomeField($value): ?Image
-    //    {
-    //        return $this->createQueryBuilder('i')
-    //            ->andWhere('i.exampleField = :val')
-    //            ->setParameter('val', $value)
-    //            ->getQuery()
-    //            ->getOneOrNullResult()
-    //        ;
-    //    }
+    public function findParentImages()
+    {
+        return $this->createQueryBuilder('i')
+            ->andWhere('i.parentId IS NULL')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Возвращает все изображения с их видео и родительскими изображениями.
+     *
+     * @return Image[]
+     */
+    public function findAllWithVideosAndParent(): array
+    {
+        return $this->createQueryBuilder('i')
+            ->leftJoin('i.videos', 'v') // Присоединяем связанные видео
+            ->leftJoin('i.parentId', 'p') // Присоединяем родительское изображение
+            ->addSelect('v') // Выбираем видео
+            ->addSelect('p') // Выбираем родительское изображение
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function findByFilters(?bool $isPublished = null): array
+    {
+        $qb = $this->createQueryBuilder('i')
+            ->andWhere('i.parentId IS NULL'); // Только родительские изображения
+
+        if ($isPublished !== null) {
+            $qb->andWhere('i.isPublished = :isPublished')
+                ->setParameter('isPublished', $isPublished);
+        }
+
+        return $qb->getQuery()->getResult();
+    }
 }

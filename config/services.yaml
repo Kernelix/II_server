@@ -6,6 +6,7 @@
 parameters:
     gallery_upload_dir: '%env(resolve:GALLERY_UPLOAD_DIR)%'
     gallery_max_per_page: 50
+    images_directory: '%kernel.project_dir%/public/uploads/images'
 services:
     App\EventSubscriber\AssertionExceptionSubscriber:
         tags:
@@ -27,6 +28,6 @@ services:
     App\Controller\GalleryController:
         tags: ['controller.service_arguments']
         arguments:
-            $galleryUploadDir: '%gallery_upload_dir%'
+            $galleryUploadDir: '%kernel.project_dir%/public/uploads/images'
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

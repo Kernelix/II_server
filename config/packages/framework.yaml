@@ -3,7 +3,9 @@ framework:
     secret: '%env(APP_SECRET)%'
 
     # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    session:
+        cookie_lifetime: 3600 # Время жизни сессии в секундах (1 час)
+        gc_maxlifetime: 3600  # Время бездействия, после которого сессия истекает
 
     #esi: true
     #fragments: true

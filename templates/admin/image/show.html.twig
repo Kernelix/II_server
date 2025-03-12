@@ -1,0 +1,44 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Image Details{% endblock %}
+
+{% block body %}
+    <div class="container">
+        {# Шапка с кнопкой "Back to list" #}
+        <header class="d-flex justify-content-between align-items-center mb-4 py-3 border-bottom">
+            <h1 class="h3 mb-0">Image Details</h1>
+            <a href="{{ path('admin_image_index') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to list
+            </a>
+        </header>
+
+        {# Карточка с деталями изображения #}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                {# Изображение #}
+                <div class="text-center mb-4">
+                    <img src="{{ asset('uploads/images/' ~ image.filename) }}" alt="{{ image.description }}" class="img-fluid rounded" style="max-width: 100%; height: auto;">
+                </div>
+
+                {# Описание изображения #}
+                <div class="mb-4">
+                    <h5 class="card-title">Description</h5>
+                    <p class="card-text">{{ image.description }}</p>
+                </div>
+
+                {# Дополнительные действия (если нужно) #}
+                <div class="d-flex gap-2">
+                    <a href="{{ path('admin_image_edit', {'id': image.id}) }}" class="btn btn-warning">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                    <form action="{{ path('admin_image_delete', {'id': image.id}) }}" method="post" onsubmit="return confirm('Are you sure you want to delete this image?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ image.id) }}">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
