@@ -42,6 +42,9 @@ class Image
     #[ORM\OneToMany(targetEntity: Video::class, mappedBy: 'image')]
     private Collection $videos;
 
+    #[ORM\Column(type: 'boolean')]
+    private bool $isFeatured = false;
+
     public function __construct()
     {
         $this->images = new ArrayCollection();
@@ -156,6 +159,18 @@ class Image
     public function setIsPublished(bool $isPublished): self
     {
         $this->isPublished = $isPublished;
+        return $this;
+    }
+
+    public function isFeatured(): ?bool
+    {
+        return $this->isFeatured;
+    }
+
+    public function setIsFeatured(bool $isFeatured): static
+    {
+        $this->isFeatured = $isFeatured;
+
         return $this;
     }
 }

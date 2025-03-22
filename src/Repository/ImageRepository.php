@@ -66,4 +66,14 @@ class ImageRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    public function findNonFeaturedAndParentImages(): array
+    {
+        return $this->createQueryBuilder('i')
+            ->andWhere('i.isFeatured = :isFeatured')
+            ->setParameter('isFeatured', false)
+            ->andWhere('i.parentId IS NULL') // Если нужно только родительские изображения
+            ->getQuery()
+            ->getResult();
+    }
 }

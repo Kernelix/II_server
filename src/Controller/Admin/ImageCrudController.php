@@ -199,6 +199,30 @@ class ImageCrudController extends AbstractController
         $image->setIsPublished(!$image->isPublished());
         $entityManager->flush();
 
-        return $this->redirectToRoute('admin_image_index');
+        return $this->redirectToRoute('admin_dashboard');
+    }
+
+    #[Route('/admin/image/add', name: 'admin_image_add', methods: ['POST'])]
+    public function addImage(Request $request, EntityManagerInterface $entityManager): Response
+    {
+        // Получаем данные из формы
+        $description = $request->request->get('description');
+        $filename = $request->request->get('filename');
+        $isFeatured = $request->request->get('isFeatured', false); // По умолчанию false
+
+
+        // Создаем новое изображение
+        $image = new Image();
+        $image->setDescription($description);
+        $image->setFilename($filename);
+        $image->setIsFeatured((bool)$isFeatured); // Устанавливаем isFeatured
+        $image->setIsPublished(false); // По умолчанию не опубликовано
+
+        // Сохраняем в базе данных
+        $entityManager->persist($image);
+        $entityManager->flush();
+
+        // Перенаправляем обратно в галерею
+        return $this->redirectToRoute('admin_dashboard');
     }
 }

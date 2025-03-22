@@ -41,6 +41,10 @@ class ImageType extends AbstractType
             ->add('isPublished', CheckboxType::class, [
                 'label' => 'Опубликовано',
                 'required' => false,
+            ])
+            ->add('isFeatured', CheckboxType::class, [
+                'label' => 'В галерее админки',
+                'required' => false,
             ]);
     }
 
