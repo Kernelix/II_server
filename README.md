@@ -1,7 +1,14 @@
 сделать composer install
 накатить миграции php bin/console doctrine:migrations:migrate
 запустить фикстуру php bin/console doctrine:fixtures:load --append
-
+<hr>
+<center>
+<h1>АРХИТЕКТУРНЫЙ КОНЦЕПТ</h1>
+<a href="https://www.edraw.ai/app/board/0a1FZ8I5SBY3Eq6wWUsADL9hFcUD4yhk?ivt=82a6f718f13f29d8c1446d2f276d9818eae897c1ca005afda98525abe358eea5d6a2608570c6c119392ac4a415809508">
+>>>Смотреть карту<<<
+</a>
+</center>
+<hr>
 <center>
 <H1><b>Технические требовании</b></h1>
 <h2>Ресайз изображении</h2>
