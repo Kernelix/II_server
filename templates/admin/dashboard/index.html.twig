@@ -3,11 +3,6 @@
 {% block title %}Admin Dashboard - Gallery{% endblock %}
 
 {% block body %}
-    {# Шапка с кнопкой Logout #}
-    <header class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Галерея</h1>
-        <a href="{{ path('admin_logout') }}" class="btn btn-danger">Logout</a>
-    </header>
 
     {# Галерея рисунков #}
     <div class="row">
@@ -20,7 +15,7 @@
                         <h5 class="card-title">{{ image.description }}</h5>
 
                         {# Изображение #}
-                        <img src="{{ asset('uploads/images/thumbs/' ~ image.filename) }}" alt="{{ image.description }}"
+                        <img src="{{ asset('uploads/images/m/' ~ image.filename) }}" alt="{{ image.description }}"
                              class="img-fluid rounded mb-3">
 
                         {# Кнопка публикации #}
@@ -41,11 +36,11 @@
             </div>
         {% endfor %}
 
-        {# Кнопка "Добавить рисунок" #}
+        {# Кнопка "Добавить пост" #}
         <div class="col-md-4 mb-4">
             <div class="card h-100 d-flex align-items-center justify-content-center">
                 <button type="button" class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#addImageModal">
-                    <i class="fas fa-plus"></i> Добавить рисунок
+                    <i class="fas fa-plus"></i> Добавить пост
                 </button>
             </div>
         </div>
@@ -60,6 +55,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+
                     <form id="addImageForm" action="{{ path('admin_image_add') }}" method="post" enctype="multipart/form-data">
                         {# Поле "Название" #}
                         <div class="mb-3">
@@ -74,7 +70,7 @@
                                 {% for uploadedImage in uploadedImages %}
                                     <div class="col-md-4 mb-3">
                                         <div class="card image-select-card">
-                                            <img src="{{ asset('uploads/images/' ~ uploadedImage.filename) }}"
+                                            <img src="{{ asset('uploads/images/m/' ~ uploadedImage.filename) }}"
                                                  alt="{{ uploadedImage.description }}"
                                                  class="card-img-top img-fluid"
                                                  data-filename="{{ uploadedImage.filename }}">
@@ -85,9 +81,11 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <input type="hidden" name="id" value="{{ uploadedImage.id }}">
                                 {% endfor %}
                             </div>
                             <input type="hidden" id="selectedImageFilename" name="filename" required>
+
                         </div>
 
                         {# Скрытое поле для isFeatured #}

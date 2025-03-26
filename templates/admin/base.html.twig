@@ -20,12 +20,13 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ path('admin_image_index') }}">Менеджер</a>
                 </li>
-{#                <li class="nav-item">#}
-{#                    <a class="nav-link" href="{{ path('admin_video_index') }}">Videos</a>#}
-{#                </li>#}
             </ul>
         </div>
     </div>
+    {# Шапка с кнопкой Logout #}
+    <header class="d-flex justify-content-between align-items-center mb-4">
+        <a href="{{ path('admin_logout') }}" class="btn btn-danger">Logout</a>
+    </header>
 </nav>
 
 <div class="container mt-4">

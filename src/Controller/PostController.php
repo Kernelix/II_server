@@ -7,14 +7,13 @@ use App\Entity\Image;
 use App\Repository\ImageRepository;
 use App\Repository\VideoRepository;
 use Assert\Assert;
-use Doctrine\ORM\Tools\Pagination\Paginator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-final class GalleryController extends AbstractController
+final class PostController extends AbstractController
 {
 
 

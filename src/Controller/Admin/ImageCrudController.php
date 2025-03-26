@@ -5,10 +5,11 @@ namespace App\Controller\Admin;
 use App\Entity\Image;
 use App\Form\ImageType;
 use App\Repository\ImageRepository;
-use App\Service\ImageProcessor;
+use App\Service\ImageRender;
 use Assert\Assert;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
@@ -25,7 +26,7 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/new', name: 'admin_image_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, EntityManagerInterface $entityManager, ImageProcessor $imageProcessor): Response
+    public function new(Request $request, EntityManagerInterface $entityManager): Response
     {
         if (!$this->getUser()) {
             return $this->redirectToRoute('admin_login'); // Перенаправление на страницу входа
@@ -46,13 +47,43 @@ class ImageCrudController extends AbstractController
             $file = $form->get('filename')->getData();
             if ($file) {
                 $fileName = uniqid() . '.' . $file->guessExtension();
-                $file->move($this->getParameter('images_directory'), $fileName);
-                $image->setFilename($fileName);
+                $tempDir = $this->getParameter('project_temp_dir');
 
-                // Создание миниатюры
-                $sourcePath = $this->getParameter('images_directory') . '/' . $fileName;
-                $thumbnailPath = $this->getParameter('images_directory') . '/thumbs/' . $fileName;
-                $imageProcessor->createThumbnail($sourcePath, $thumbnailPath, 150, 150); // Размер миниатюры 150x150
+                // Создаем директорию при необходимости
+                $fs = new Filesystem();
+                if (!$fs->exists($tempDir)) {
+                    $fs->mkdir($tempDir, 0755);
+                }
+
+                $tempPath = $file->move($tempDir, $fileName);
+                // Получаем размеры изображения
+                $imageInfo = getimagesize($tempPath);
+                $width = $imageInfo[0]; // Ширина
+
+                $fs = new Filesystem();
+
+                $destSpath = $this->getParameter('images_s_dir');
+                $destMpath = $this->getParameter('images_m_dir');
+                $destLpath = $this->getParameter('images_l_dir');
+
+                if ($width >= 300){
+                    ImageRender::resize($tempPath, $destSpath . $fileName, ['webp', 90], 300, null, 'scale');
+                }else{
+                    $fs->copy($tempPath, $destSpath . $fileName, false);
+                }
+                if ($width >= 1920){
+                    ImageRender::resize($tempPath, $destMpath . $fileName, ['webp', 90], 1920, null, 'scale');
+                }else{
+                    $fs->copy($tempPath, $destMpath . $fileName, false);
+                }
+                if ($width >= 5760){
+                    ImageRender::resize($tempPath, $destLpath . $fileName, ['jpeg', 60], 5760, null, 'scale');
+                }else{
+                    $fs->copy($tempPath, $destLpath . $fileName, false);
+                }
+
+                $fs->remove($tempPath);
+                $image->setFilename($fileName);
             }
             // Установка parentId, если он был выбран
             $parentImage = $form->get('parentId')->getData();
@@ -92,7 +123,7 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/{id}/edit', name: 'admin_image_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, int $id, ImageRepository $imageRepository, EntityManagerInterface $entityManager, ImageProcessor $imageProcessor): Response
+    public function edit(Request $request, int $id, ImageRepository $imageRepository, EntityManagerInterface $entityManager): Response
     {
         if (!$this->getUser()) {
             return $this->redirectToRoute('admin_login'); // Перенаправление на страницу входа
@@ -110,6 +141,9 @@ class ImageCrudController extends AbstractController
         $form->handleRequest($request);
 
 
+        $destSpath = $this->getParameter('images_s_dir');
+        $destMpath = $this->getParameter('images_m_dir');
+        $destLpath = $this->getParameter('images_l_dir');
 
         if ($form->isSubmitted() && $form->isValid()) {
             // Обработка загрузки файла, если он был изменён
@@ -118,26 +152,56 @@ class ImageCrudController extends AbstractController
                 // Удаляем старое изображение
                 $oldFilename = $image->getFilename();
                 if ($oldFilename) {
-                    $oldFilePath = $this->getParameter('images_directory') . '/' . $oldFilename;
-                    if (file_exists($oldFilePath)) {
-                        unlink($oldFilePath);
+                    $oldFilePathS = $destSpath . $oldFilename;
+                    $oldFilePathM = $destMpath . $oldFilename;
+                    $oldFilePathL = $destLpath . $oldFilename;
+                    if (file_exists($oldFilePathS)) {
+                        unlink($oldFilePathS);
                     }
-                    // Удаляем миниатюру
-                    $oldThumbPath = $this->getParameter('images_directory') . '/thumbs/' . $oldFilename;
-                    if (file_exists($oldThumbPath)) {
-                        unlink($oldThumbPath);
+                    if (file_exists($oldFilePathM)) {
+                        unlink($oldFilePathM);
+                    }
+                    if (file_exists($oldFilePathL)) {
+                        unlink($oldFilePathL);
                     }
                 }
 
+                $tempDir = $this->getParameter('project_temp_dir');
                 // Сохраняем новое изображение
                 $fileName = uniqid() . '.' . $file->guessExtension();
-                $file->move($this->getParameter('images_directory'), $fileName);
-                $image->setFilename($fileName);
 
-                // Создаем миниатюру
-                $sourcePath = $this->getParameter('images_directory') . '/' . $fileName;
-                $thumbnailPath = $this->getParameter('images_directory') . '/thumbs/' . $fileName;
-                $imageProcessor->createThumbnail($sourcePath, $thumbnailPath, 150, 150); // Размер миниатюры 150x150
+                // Создаем директорию при необходимости
+                $fs = new Filesystem();
+                if (!$fs->exists($tempDir)) {
+                    $fs->mkdir($tempDir, 0755);
+                }
+
+                $tempPath = $file->move($tempDir, $fileName);
+                // Получаем размеры изображения
+                $imageInfo = getimagesize($tempPath);
+                $width = $imageInfo[0]; // Ширина
+
+                $fs = new Filesystem();
+
+
+                if ($width >= 300) {
+                    ImageRender::resize($tempPath, $destSpath . $fileName, ['webp', 90], 300, null, 'scale');
+                } else {
+                    $fs->copy($tempPath, $destSpath . $fileName, false);
+                }
+                if ($width >= 1920) {
+                    ImageRender::resize($tempPath, $destMpath . $fileName, ['webp', 90], 1920, null, 'scale');
+                } else {
+                    $fs->copy($tempPath, $destMpath . $fileName, false);
+                }
+                if ($width >= 5760) {
+                    ImageRender::resize($tempPath, $destLpath . $fileName, ['jpeg', 60], 5760, null, 'scale');
+                } else {
+                    $fs->copy($tempPath, $destLpath . $fileName, false);
+                }
+
+                $fs->remove($tempPath);
+                $image->setFilename($fileName);
             }
 
             // Установка parentId, если он был выбран
@@ -173,15 +237,26 @@ class ImageCrudController extends AbstractController
         Assert::that($image)->notEmpty('Изображение не найдено');
 
         if ($this->isCsrfTokenValid('delete' . $image->getId(), $request->request->get('_token'))) {
-            // Удаление файла изображения
-            $filePath = $this->getParameter('images_directory') . '/' . $image->getFilename();
-            if (file_exists($filePath)) {
-                unlink($filePath);
-            }
-            // Удаление миниатюры
-            $thumbnailPath = $this->getParameter('images_directory') . '/thumbs/' . $image->getFilename();
-            if (file_exists($thumbnailPath)) {
-                unlink($thumbnailPath);
+            $destSpath = $this->getParameter('images_s_dir');
+            $destMpath = $this->getParameter('images_m_dir');
+            $destLpath = $this->getParameter('images_l_dir');
+
+
+            // Удаляем старое изображение
+            $filename = $image->getFilename();
+            if ($filename) {
+                $filePathS = $destSpath . $filename;
+                $filePathM = $destMpath . $filename;
+                $filePathL = $destLpath . $filename;
+                if (file_exists($filePathS)) {
+                    unlink($filePathS);
+                }
+                if (file_exists($filePathM)) {
+                    unlink($filePathM);
+                }
+                if (file_exists($filePathL)) {
+                    unlink($filePathL);
+                }
             }
 
             $entityManager->remove($image);
@@ -203,7 +278,7 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/admin/image/add', name: 'admin_image_add', methods: ['POST'])]
-    public function addImage(Request $request, EntityManagerInterface $entityManager): Response
+    public function addImage(Request $request, EntityManagerInterface $entityManager, ImageRepository $imageRepository): Response
     {
         // Получаем данные из формы
         $description = $request->request->get('description');
@@ -211,8 +286,10 @@ class ImageCrudController extends AbstractController
         $isFeatured = $request->request->get('isFeatured', false); // По умолчанию false
 
 
-        // Создаем новое изображение
-        $image = new Image();
+        $id = $request->request->get('id');
+        $image = $imageRepository->find($id);
+        Assert::that($image)->notEmpty('Изображение не найдено');
+
         $image->setDescription($description);
         $image->setFilename($filename);
         $image->setIsFeatured((bool)$isFeatured); // Устанавливаем isFeatured
