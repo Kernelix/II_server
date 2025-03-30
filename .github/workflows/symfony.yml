@@ -10,6 +10,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+            fetch-depth: 0  # Полная история коммитов
+
       - name: Set shell by OS
         run: |
           echo "Выбран shell для $RUNNER_OS"
