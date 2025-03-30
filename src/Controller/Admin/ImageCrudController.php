@@ -10,6 +10,7 @@ use Assert\Assert;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
@@ -32,7 +33,14 @@ class ImageCrudController extends AbstractController
             return $this->redirectToRoute('admin_login'); // Перенаправление на страницу входа
         }
         $image = new Image();
-        $form = $this->createForm(ImageType::class, $image);
+        $noNeeds = false;
+        $form = $this->createForm(ImageType::class, $image, [
+            'include_parent_field' => $noNeeds,
+            'include_description_field' => $noNeeds,
+            'include_videos_field' => $noNeeds,
+            'isPublished' => $noNeeds,
+            'isFeatured' => $noNeeds
+        ]);
         // Отключаем кэширование
         $response = new Response();
         $response->headers->set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -85,20 +93,7 @@ class ImageCrudController extends AbstractController
                 $fs->remove($tempPath);
                 $image->setFilename($fileName);
             }
-            // Установка parentId, если он был выбран
-            $parentImage = $form->get('parentId')->getData();
-            if ($parentImage) {
-                $image->setParentId($parentImage);
-            }
 
-            // Закрепление видео
-            $videos = $form->get('videos')->getData();
-            foreach ($videos as $video) {
-                // Если выбрана родительская картинка, привязываем видео к ней
-                if ($parentImage) {
-                    $video->setImage($parentImage);
-                }
-            }
 
             $entityManager->persist($image);
             $entityManager->flush();
@@ -278,7 +273,7 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/admin/image/add', name: 'admin_image_add', methods: ['POST'])]
-    public function addImage(Request $request, EntityManagerInterface $entityManager, ImageRepository $imageRepository): Response
+    public function addImage(Request $request, EntityManagerInterface $entityManager, ImageRepository $imageRepository)
     {
         // Получаем данные из формы
         $description = $request->request->get('description');
@@ -290,16 +285,34 @@ class ImageCrudController extends AbstractController
         $image = $imageRepository->find($id);
         Assert::that($image)->notEmpty('Изображение не найдено');
 
-        $image->setDescription($description);
-        $image->setFilename($filename);
-        $image->setIsFeatured((bool)$isFeatured); // Устанавливаем isFeatured
-        $image->setIsPublished(false); // По умолчанию не опубликовано
+        // Если запрос AJAX — возвращаем JSON
+        if ($request->isXmlHttpRequest()) {
+            try {
+                $image->setDescription($description);
+                $image->setFilename($filename);
+                $image->setIsFeatured((bool)$isFeatured); // Устанавливаем isFeatured
+                $image->setIsPublished(false); // По умолчанию не опубликовано
 
-        // Сохраняем в базе данных
-        $entityManager->persist($image);
-        $entityManager->flush();
+                // Сохраняем в базе данных
+                $entityManager->persist($image);
+                $entityManager->flush();
 
+                return new JsonResponse(['success' => true, 'message' => 'Пост сохранен!']);
+            } catch (\Exception $e) {
+                return new JsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+            }
+        }
         // Перенаправляем обратно в галерею
         return $this->redirectToRoute('admin_dashboard');
+    }
+
+
+
+    #[Route('/admin/gallery/partial', name: 'admin_gallery_partial', methods: ['GET'])]
+    public function galleryPartial(ImageRepository $imageRepository): Response
+    {
+        return $this->render('admin/image/_gallery.html.twig', [
+            'images' => $imageRepository->findParentImages(),
+        ]);
     }
 }

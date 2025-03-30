@@ -3,102 +3,79 @@
 {% block title %}Admin Dashboard - Gallery{% endblock %}
 
 {% block body %}
+    {# Основной контейнер галереи #}
+    <div id="gallery-container" class="row">
+        {% include 'admin/image/_gallery.html.twig' with {'images': images} %}
+    </div>
 
-    {# Галерея рисунков #}
-    <div class="row">
-        {% for image in images %}
-            {% if image.isFeatured %} {# Отображаем только featured изображения #}
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        {# Название рисунка #}
-                        <h5 class="card-title">{{ image.description }}</h5>
-
-                        {# Изображение #}
-                        <img src="{{ asset('uploads/images/m/' ~ image.filename) }}" alt="{{ image.description }}"
-                             class="img-fluid rounded mb-3">
-
-                        {# Кнопка публикации #}
-                        <form action="{{ path('admin_image_toggle_publish', {'id': image.id}) }}" method="post">
-                            <input type="hidden" name="_token" value="{{ csrf_token('toggle-publish' ~ image.id) }}">
-                            <button type="submit" class="btn btn-sm {{ image.isPublished ? 'btn-danger' : 'btn-success' }}">
-                                <i class="fas {{ image.isPublished ? 'fa-eye-slash' : 'fa-eye' }}"></i>
-                                {{ image.isPublished ? 'Снять с публикации' : 'Опубликовать' }}
-                            </button>
-                        </form>
-                    </div>
+    {# Модальное окно для добавления поста #}
+    <div class="modal fade" id="addPostModal" tabindex="-1" aria-labelledby="addPostModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addPostModalLabel">Добавить пост</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-            </div>
-            {% endif %}
-        {% else %}
-            <div class="col-12">
-                <p class="text-center">No images found.</p>
-            </div>
-        {% endfor %}
+                <div class="modal-body">
+                    <form id="addPostForm" action="{{ path('admin_image_add') }}" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="postDescription" class="form-label">Название поста</label>
+                            <input type="text" class="form-control" id="postDescription" name="description" required>
+                        </div>
 
-        {# Кнопка "Добавить пост" #}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 d-flex align-items-center justify-content-center">
-                <button type="button" class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#addImageModal">
-                    <i class="fas fa-plus"></i> Добавить пост
-                </button>
+                        <div class="mb-3">
+                            <label class="form-label">Миниатюра</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="thumbnailInput" readonly>
+                                <button class="btn btn-outline-secondary" type="button"
+                                        data-bs-toggle="modal" data-bs-target="#imageManagerModal">
+                                    Выбрать изображение
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="id" id="selectedImageId">
+                        <input type="hidden" id="selectedImageFilename" name="filename" required>
+                        <input type="hidden" name="isFeatured" value="true">
+                        <input type="hidden" name="_token" value="{{ csrf_token('add_image') }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Сохранить пост
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 
-    {# Модальное окно для добавления рисунка #}
-    <div class="modal fade" id="addImageModal" tabindex="-1" aria-labelledby="addImageModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+    {# Модальное окно менеджера изображений #}
+    <div class="modal fade" id="imageManagerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="addImageModalLabel">Добавить рисунок</h5>
+                    <h5 class="modal-title">Выберите изображение</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-
-                    <form id="addImageForm" action="{{ path('admin_image_add') }}" method="post" enctype="multipart/form-data">
-                        {# Поле "Название" #}
-                        <div class="mb-3">
-                            <label for="imageDescription" class="form-label">Название</label>
-                            <input type="text" class="form-control" id="imageDescription" name="description" required>
-                        </div>
-
-                        {# Галерея для выбора изображения #}
-                        <div class="mb-3">
-                            <label class="form-label">Выберите изображение</label>
-                            <div class="row">
-                                {% for uploadedImage in uploadedImages %}
-                                    <div class="col-md-4 mb-3">
-                                        <div class="card image-select-card">
-                                            <img src="{{ asset('uploads/images/m/' ~ uploadedImage.filename) }}"
-                                                 alt="{{ uploadedImage.description }}"
-                                                 class="card-img-top img-fluid"
-                                                 data-filename="{{ uploadedImage.filename }}">
-                                            <div class="card-body text-center">
-                                                <button type="button" class="btn btn-sm btn-outline-primary select-image-btn">
-                                                    Выбрать
-                                                </button>
-                                            </div>
-                                        </div>
+                    <div class="row">
+                        {% for image in uploadedImages %}
+                            <div class="col-md-3 mb-3">
+                                <div class="card image-select-card">
+                                    <img src="{{ asset('uploads/images/m/' ~ image.filename) }}"
+                                         class="card-img-top"
+                                         data-filename="{{ image.filename }}"
+                                         data-id="{{ image.id }}">
+                                    <div class="card-body text-center">
+                                        <button type="button" class="btn btn-sm btn-primary select-image-btn">
+                                            Выбрать
+                                        </button>
                                     </div>
-                                    <input type="hidden" name="id" value="{{ uploadedImage.id }}">
-                                {% endfor %}
+                                </div>
                             </div>
-                            <input type="hidden" id="selectedImageFilename" name="filename" required>
-
-                        </div>
-
-                        {# Скрытое поле для isFeatured #}
-                        <input type="hidden" name="isFeatured" value="true">
-
-                        {# CSRF-токен #}
-                        <input type="hidden" name="_token" value="{{ csrf_token('add-image') }}">
-
-                        {# Кнопка "Сохранить" #}
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Сохранить
-                        </button>
-                    </form>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
                 </div>
             </div>
         </div>
@@ -106,74 +83,121 @@
 {% endblock %}
 
 {% block javascripts %}
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Обработка выбора изображения
-            const imageCards = document.querySelectorAll('.image-select-card');
-            const selectedImageInput = document.getElementById('selectedImageFilename');
-            const isFeaturedInput = document.querySelector('input[name="isFeatured"]');
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Инициализация всех обработчиков
+                function initAllHandlers() {
+                    // Обработчик выбора изображения
+                    document.querySelectorAll('.select-image-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const img = this.closest('.card').querySelector('img');
+                            document.getElementById('thumbnailInput').value = img.dataset.filename;
+                            document.getElementById('selectedImageId').value = img.dataset.id;
+                            document.getElementById('selectedImageFilename').value = img.dataset.filename;
 
-            imageCards.forEach(card => {
-                card.addEventListener('click', function (event) {
-                    // Предотвращаем всплытие события, если кликнули на кнопку внутри карточки
-                    if (event.target.classList.contains('select-image-btn')) {
-                        return;
+                            bootstrap.Modal.getInstance(
+                                document.getElementById('imageManagerModal')
+                            ).hide();
+                            bootstrap.Modal.getInstance(
+                                document.getElementById('addPostModal')
+                            ).show();
+                        });
+                    });
+
+                    // Обработчик формы добавления
+                    const addPostForm = document.getElementById('addPostForm');
+                    if (addPostForm) {
+                        addPostForm.addEventListener('submit', async function(e) {
+                            e.preventDefault();
+                            const formData = new FormData(this);
+
+                            try {
+                                const response = await fetch(this.action, {
+                                    method: 'POST',
+                                    body: formData,
+                                    headers: {
+                                        'X-Requested-With': 'XMLHttpRequest'
+                                    }
+                                });
+
+                                if (!response.ok) {
+                                    const error = await response.json();
+                                    throw new Error(error.message || 'Server error');
+                                }
+
+                                const data = await response.json();
+                                if (data.success) {
+                                    await updateGallery();
+                                    bootstrap.Modal.getInstance(
+                                        document.getElementById('addPostModal')
+                                    ).hide();
+                                    this.reset();
+                                }
+                            } catch (error) {
+                                console.error('Error:', error);
+                                alert('Ошибка: ' + error.message);
+                            }
+                        });
                     }
+                }
 
-                    // Убираем выделение у всех карточек
-                    imageCards.forEach(c => c.classList.remove('selected'));
+                // Функция обновления галереи
+                async function updateGallery() {
+                    const container = document.getElementById('gallery-container');
+                    if (!container) return;
 
-                    // Выделяем выбранную карточку
-                    card.classList.add('selected');
+                    try {
+                        // Показать индикатор загрузки
+                        container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            `;
 
-                    // Устанавливаем значение выбранного изображения
-                    const filename = card.querySelector('img').dataset.filename;
-                    selectedImageInput.value = filename;
+                        // Добавляем timestamp для предотвращения кеширования
+                        const response = await fetch('{{ path("admin_gallery_partial") }}?t=${Date.now()}');
 
-                    // Устанавливаем isFeatured в true
-                    isFeaturedInput.value = true;
-                });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+
+                        const html = await response.text();
+                        container.innerHTML = html;
+
+                        // Переинициализируем обработчики
+                        initAllHandlers();
+
+                    } catch (error) {
+                        console.error('Gallery update failed:', error);
+                        container.innerHTML = `
+                <div class="col-12 text-center text-danger py-3">
+                    Ошибка загрузки галереи. <button onclick="updateGallery()" class="btn btn-sm btn-warning">Повторить</button>
+                </div>
+            `;
+                    }
+                }
+
+                // Первичная инициализация
+                initAllHandlers();
             });
-
-            // Обработка клика на кнопку "Выбрать"
-            const selectButtons = document.querySelectorAll('.select-image-btn');
-            selectButtons.forEach(button => {
-                button.addEventListener('click', function (event) {
-                    // Находим родительскую карточку
-                    const card = button.closest('.image-select-card');
-
-                    // Убираем выделение у всех карточек
-                    imageCards.forEach(c => c.classList.remove('selected'));
-
-                    // Выделяем выбранную карточку
-                    card.classList.add('selected');
-
-                    // Устанавливаем значение выбранного изображения
-                    const filename = card.querySelector('img').dataset.filename;
-                    selectedImageInput.value = filename;
-
-                    // Устанавливаем isFeatured в true
-                    isFeaturedInput.value = true;
-                });
-            });
-        });
-    </script>
+        </script>
 {% endblock %}
 
 {% block stylesheets %}
     <style>
         .image-select-card {
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s;
         }
-
         .image-select-card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transform: scale(1.03);
         }
-
-        .image-select-card.selected {
-            border: 2px solid #0d6efd;
+        .image-select-card img {
+            max-height: 150px;
+            object-fit: cover;
+        }
+        #gallery-container {
+            transition: opacity 0.3s ease;
         }
     </style>
 {% endblock %}
