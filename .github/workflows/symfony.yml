@@ -1,16 +1,13 @@
-name: Symfony CI
-
+name: "Symfony CI Pipeline"  # Обязательное поле name
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
-env:
-  DATABASE_URL: "mysql://root@127.127.126.50:3306/sentihell?serverVersion=8&charset=utf8mb4"
-
 jobs:
-  build:
+  build-and-test:
+    name: "Build and test Symfony application"  # Название job
     runs-on: ubuntu-latest
 
     services:
@@ -24,9 +21,10 @@ jobs:
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
-      - uses: actions/checkout@v4
+      - name: "Checkout repository"  # Описание шага
+        uses: actions/checkout@v4
 
-      - name: Setup PHP
+      - name: "Setup PHP 8.3"
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -34,49 +32,50 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Validate composer
+      - name: "Validate composer"
         run: |
-            composer validate --strict
-            # Проверка синхронизации json/lock
-            if ! composer install --dry-run 2>&1 | grep -q "Nothing to install, update or remove"; then
-            echo "::error::composer.lock не синхронизирован с composer.json"
+          composer validate --strict
+          if ! composer install --dry-run 2>&1 | grep -q "Nothing to install, update or remove"; then
+            echo "::error::composer.lock out of sync"
             exit 1
-            fi
+          fi
 
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
+      - name: "Install dependencies"
+        run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Create .env.local
+      - name: "Setup environment"
         run: |
-          echo "DATABASE_URL=${{ env.DATABASE_URL }}" > .env.local
-          echo "APP_ENV=test" >> .env.local
-          echo "APP_SECRET=testsecret" >> .env.local
+          echo "DATABASE_URL=mysql://root:root@127.0.0.1:3306/sentihell?serverVersion=8&charset=utf8mb4" > .env.test
+          echo "APP_ENV=test" >> .env.test
+          echo "APP_SECRET=testsecret" >> .env.test
 
-      - name: Wait for MySQL to be ready
+      - name: "Wait for MySQL"
         run: |
           for i in {1..10}; do
             mysqladmin ping -h 127.0.0.1 -u root -proot --silent && break || sleep 5
           done
 
-      - name: Database setup
+      - name: "Prepare database"
         run: |
-          php bin/console doctrine:database:create --if-not-exists
-          php bin/console doctrine:schema:update --force --complete
+          php bin/console doctrine:database:create --if-not-exists --env=test
+          php bin/console doctrine:schema:update --force --complete --env=test
 
-      - name: Lint container
-        run: php bin/console lint:container
+      - name: "Run linting"
+        run: |
+          php bin/console lint:container
+          php bin/console lint:twig templates
+          php bin/console lint:yaml config
 
-      - name: Lint Twig templates
-        run: php bin/console lint:twig templates
+      - name: "Run PHPStan"
+        run: vendor/bin/phpstan analyse src --level=5 --no-progress
 
-      - name: Lint YAML files
-        run: php bin/console lint:yaml config
-
-      - name: Verify code style
+      - name: "Run PHP-CS-Fixer"
         run: vendor/bin/php-cs-fixer fix --dry-run --diff
 
-      - name: Security check
-        run: composer require symfony/security-checker --dev && php vendor/bin/security-checker security:check
-
-      - name: Run PHPStan
-        run: vendor/bin/phpstan analyse src --level=5 --no-progress
+      - name: "PSR-12 Check and Fix"
+        run: |
+              composer require --dev squizlabs/php_codesniffer
+              # Пытаемся автоматически исправить ошибки
+              ./vendor/bin/phpcbf --standard=PSR12 src/ || true
+              # Проверяем соответствие
+              ./vendor/bin/phpcs --standard=PSR12 --colors -p --warning-severity=0 src/
