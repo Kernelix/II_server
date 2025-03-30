@@ -34,8 +34,14 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Validate composer.json and composer.lock
-        run: composer validate --strict
+      - name: Validate composer
+        run: |
+            composer validate --strict
+            # Проверка синхронизации json/lock
+            if ! composer install --dry-run 2>&1 | grep -q "Nothing to install, update or remove"; then
+            echo "::error::composer.lock не синхронизирован с composer.json"
+            exit 1
+            fi
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
