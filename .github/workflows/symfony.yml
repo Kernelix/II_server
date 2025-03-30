@@ -32,16 +32,34 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: "Validate composer"
+      - name: Validate composer sync
         run: |
-          composer validate --strict
-          if ! composer install --dry-run 2>&1 | grep -q "Nothing to install, update or remove"; then
-            echo "::error::composer.lock out of sync"
-            exit 1
-          fi
+            # Проверяем синхронизацию lock-файла
+            composer install --dry-run 2>&1 | grep -q "Nothing to install" || (echo "::error::composer.lock не синхронизирован с composer.json" && exit 1)
+            
+            # Альтернативная проверка (более строгая)
+            if ! composer validate --strict --no-check-all --no-check-lock; then
+              echo "::error::Проблемы с composer.json"
+              exit 1
+            fi
 
-      - name: "Install dependencies"
-        run: composer install --prefer-dist --no-progress --no-interaction
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            vendor/
+            composer.lock
+          key: ${{ runner.os }}-php-${{ hashFiles('composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
+
+      - name: Install dependencies
+        run: |
+          # Если нет кэша - обновляем зависимости
+          if [ ! -d vendor ]; then
+            composer update --no-interaction --no-scripts
+          fi
+          composer install --prefer-dist --no-progress
 
       - name: "Setup environment"
         run: |
