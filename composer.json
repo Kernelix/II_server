@@ -1,4 +1,6 @@
 {
+    "name": "sielavic/sentihell",
+    "description": "Сайт с галереями и статистикой просмотров",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",
