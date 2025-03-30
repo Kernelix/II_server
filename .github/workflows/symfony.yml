@@ -1,0 +1,76 @@
+name: Symfony CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  DATABASE_URL: "mysql://root@127.127.126.50:3306/sentihell?serverVersion=8&charset=utf8mb4"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: sentihell
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json and composer.lock
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
+
+      - name: Create .env.local
+        run: |
+          echo "DATABASE_URL=${{ env.DATABASE_URL }}" > .env.local
+          echo "APP_ENV=test" >> .env.local
+          echo "APP_SECRET=testsecret" >> .env.local
+
+      - name: Wait for MySQL to be ready
+        run: |
+          for i in {1..10}; do
+            mysqladmin ping -h 127.0.0.1 -u root -proot --silent && break || sleep 5
+          done
+
+      - name: Database setup
+        run: |
+          php bin/console doctrine:database:create --if-not-exists
+          php bin/console doctrine:schema:update --force --complete
+
+      - name: Lint container
+        run: php bin/console lint:container
+
+      - name: Lint Twig templates
+        run: php bin/console lint:twig templates
+
+      - name: Lint YAML files
+        run: php bin/console lint:yaml config
+
+      - name: Verify code style
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff
+
+      - name: Security check
+        run: composer require symfony/security-checker --dev && php vendor/bin/security-checker security:check
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse src --level=5 --no-progress
