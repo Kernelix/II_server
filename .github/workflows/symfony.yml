@@ -30,18 +30,18 @@ jobs:
           php-version: '8.3'
           extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql
           coverage: none
-          tools: composer:v2
+          tools: composer:2.7.7 # Явно указываем версию
 
-      - name: Validate composer sync
+      - name: Set Composer version
         run: |
-            # Проверяем синхронизацию lock-файла
-            composer install --dry-run 2>&1 | grep -q "Nothing to install" || (echo "::error::composer.lock не синхронизирован с composer.json" && exit 1)
-            
-            # Альтернативная проверка (более строгая)
-            if ! composer validate --strict --no-check-all --no-check-lock; then
-              echo "::error::Проблемы с composer.json"
-              exit 1
-            fi
+            # Устанавливаем конкретную версию Composer
+            composer self-update 2.7.7
+
+            - name: Validate composer
+              run: |
+                composer validate --strict
+                # Проверка синхронизации с явным указанием версии
+                php -d memory_limit=-1 /usr/bin/composer2.7 install --dry-run 2>&1 | grep -q "Nothing to install" || (echo "::error::composer.lock не синхронизирован" && exit 1)
 
       - name: Cache Composer dependencies
         uses: actions/cache@v3
