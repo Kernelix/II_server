@@ -55,11 +55,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Если нет кэша - обновляем зависимости
-          if [ ! -d vendor ]; then
-            composer update --no-interaction --no-scripts
-          fi
-          composer install --prefer-dist --no-progress
+            php -d memory_limit=-1 /usr/bin/composer2.7 install --prefer-dist --no-interaction --no-scripts
 
       - name: "Setup environment"
         run: |
