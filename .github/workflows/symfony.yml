@@ -32,30 +32,16 @@ jobs:
           coverage: none
           tools: composer:2.7.7 # Явно указываем версию
 
-      - name: Set Composer version
+      - name: Validate composer
         run: |
-            # Устанавливаем конкретную версию Composer
-            composer self-update 2.7.7
-
-            - name: Validate composer
-              run: |
-                composer validate --strict
-                # Проверка синхронизации с явным указанием версии
-                php -d memory_limit=-1 /usr/bin/composer2.7 install --dry-run 2>&1 | grep -q "Nothing to install" || (echo "::error::composer.lock не синхронизирован" && exit 1)
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            vendor/
-            composer.lock
-          key: ${{ runner.os }}-php-${{ hashFiles('composer.json') }}
-          restore-keys: |
-            ${{ runner.os }}-php-
+          composer validate --strict
+          if ! composer install --dry-run 2>&1 | grep -q "Nothing to install"; then
+            echo "::error::composer.lock out of sync"
+            exit 1
+          fi
 
       - name: Install dependencies
-        run: |
-            php -d memory_limit=-1 /usr/bin/composer2.7 install --prefer-dist --no-interaction --no-scripts
+        run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
 
       - name: "Setup environment"
         run: |
