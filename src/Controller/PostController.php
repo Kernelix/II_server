@@ -10,7 +10,6 @@ use Assert\Assert;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class PostController extends AbstractController
@@ -50,7 +49,9 @@ final class PostController extends AbstractController
         return new JsonResponse($result);
     }
 
-
+    /**
+     * @return array<string, scalar|null>
+     */
     private function extract(Image $image): array
     {
         return [
@@ -61,18 +62,18 @@ final class PostController extends AbstractController
     }
 
     #[Route('/{id}', name: 'gallery_detail', methods: ['GET'])]
-    public function galleryDetail(int $id, ImageRepository $imageRepository, VideoRepository $videoRepository): JsonResponse
+    public function galleryDetail(int $id): JsonResponse
     {
 // 1. Получаем родительскую картинку по её ID
-        $parentImage = $imageRepository->find($id);
+        $parentImage = $this->imageRepository->find($id);
 
         Assert::that($parentImage)->notEmpty('Изображение не найдено');
 
         // 2. Получаем все дочерние изображения, связанные с этой родительской картинкой
-        $childImages = $imageRepository->findBy(['parentId' => $parentImage]);
+        $childImages = $this->imageRepository->findBy(['parentId' => $parentImage]);
 
         // 3. Получаем все видео, связанные с этой родительской картинкой
-        $videos = $videoRepository->findBy(['image' => $parentImage]);
+        $videos = $this->videoRepository->findBy(['image' => $parentImage]);
 
         // 4. Формируем ответ в формате JSON
         $response = [

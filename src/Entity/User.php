@@ -12,13 +12,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column]
+    #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
     #[ORM\Column(type: 'string', length: 180, unique: true)]
     private ?string $email = null;
 
-    #[ORM\Column]
+    /**
+     * @var array<array-key, 'ROLE_USER'|'ROLE_ADMIN'|'ROLE_SUPER_ADMIN'>
+     */
+    #[ORM\Column(type: 'json')]
     private array $roles = [];
 
     #[ORM\Column(length: 255)]
@@ -53,11 +56,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return array_unique($roles);
     }
 
-    public function setRoles(array $roles): static
+    /** @param array<string> $roles */
+    public function setRoles(array $roles): void
     {
         $this->roles = $roles;
-
-        return $this;
     }
 
     public function getPassword(): ?string

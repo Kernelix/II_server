@@ -1,8 +1,20 @@
+includes:
+    - vendor/phpstan/phpstan-symfony/extension.neon
+    - vendor/phpstan/phpstan-doctrine/extension.neon
+
 parameters:
     level: 6
     paths:
-        - bin/
-        - config/
-        - public/
         - src/
         - tests/
+
+    bootstrapFiles:
+          - %currentWorkingDirectory%/.env.test
+          - %currentWorkingDirectory%/tests/object-manager.php
+    symfony:
+          containerXmlPath: '%currentWorkingDirectory%/var/cache/test/App_KernelTestDebugContainer.xml'
+
+    # Настройки Doctrine
+    doctrine:
+        objectManagerLoader: 'tests/object-manager.php'
+        allowNullablePropertyForRequiredField: true

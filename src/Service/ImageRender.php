@@ -2,11 +2,19 @@
 
 namespace App\Service;
 
+use GdImage;
+
 class ImageRender
 {
-
-    private static function imageCreateFromAny($filepath)
+    /**
+     * Создает ресурс изображения из файла
+     *
+     * @param string $filepath Путь к файлу изображения
+     * @return \GdImage|false Возвращает ресурс изображения или false в случае ошибки
+     */
+    private static function imageCreateFromAny(string $filepath): \GdImage|false
     {
+        $im = null;
         $type = exif_imagetype($filepath); // [] if you don't have exif you could use getImageSize()
         $allowedTypes = array(
             1,  // [] gif
@@ -38,18 +46,58 @@ class ImageRender
         return $im;
     }
 
-    public static function checkSize($filepath, $size)
+
+
+    /**
+     * Проверяет, соответствует ли изображение минимальным размерам
+     *
+     * @param string $filepath Путь к файлу изображения
+     * @param array{0: int, 1: int} $size Минимальные размеры [ширина, высота]
+     * @return bool|null Возвращает:
+     *   - true если изображение МЕНЬШЕ указанных размеров по любой из сторон
+     *   - false если изображение БОЛЬШЕ или РАВНО минимальным размерам по обеим сторонам
+     *   - null если не удалось прочитать изображение
+     */
+    public static function checkSize(string $filepath, array $size): ?bool
     {
-        $img = self::imageCreateFromAny($filepath);
+        // Получаем изображение
+        $img = @self::imageCreateFromAny($filepath);
+        if (!is_resource($img) && !$img instanceof \GdImage) {
+            return null;
+        }
+
+        // Получаем размеры
         $width = imagesx($img);
         $height = imagesy($img);
-//        dd($width, $height);
-        if ($width >= $size[0]) return;
-        if ($height >= $size[1]) return;
-        return true;
+
+        // Освобождаем память
+        imagedestroy($img);
+
+
+        return ((int)$width < $size[0]) || ((int)$height < $size[1]);
     }
 
-    public static function resize($sourcefilepath, $destdir, $setting, $reqwidth, $reqheight = null, $type = false)
+    /**
+     * Изменяет размер изображения согласно заданным параметрам
+     *
+     * @param string $sourcefilepath
+     * @param string $destdir
+     * @param array{0: string, 1: int} $setting Настройки обработки:
+     *   - [0]: тип изображения ('webp', 'jpeg', 'png')
+     *   - [1]: качество (0-100)
+     * @param int $reqwidth
+     * @param int|null $reqheight
+     * @param string|false $type
+     * @return string|false Путь к обработанному файлу или false при ошибке
+     */
+    public static function resize(
+        string       $sourcefilepath,
+        string       $destdir,
+        array        $setting,
+        int          $reqwidth,
+        ?int         $reqheight = null,
+        string|false $type = false
+    ): string|false
     {
         $thumbnail_path = $destdir;
         $image_file = $sourcefilepath;
@@ -76,7 +124,7 @@ class ImageRender
 
         // Принудительное приведение размеров
         $reqwidth = (int)round($reqwidth);
-        $reqheight = $reqheight === null ? null : (int)round($reqheight);
+        $reqheight = $reqheight == null ? null : (int)round($reqheight);
 
 //        dd($orient, $width * $orient);
 
@@ -154,6 +202,6 @@ class ImageRender
         imagedestroy($tmp_img);
 
 
-        return $result;
+        return $result ? $destdir : false;
     }
 }

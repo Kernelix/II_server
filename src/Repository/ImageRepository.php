@@ -29,8 +29,8 @@ class ImageRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
-
-    public function findParentImages()
+    /** @return Image[]|null */
+    public function findParentImages(): ?array
     {
         return $this->createQueryBuilder('i')
             ->andWhere('i.parentId IS NULL')
@@ -54,6 +54,9 @@ class ImageRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * @return array<Image>
+     */
     public function findByFilters(?bool $isPublished = null): array
     {
         $qb = $this->createQueryBuilder('i')
@@ -67,6 +70,9 @@ class ImageRepository extends ServiceEntityRepository
         return $qb->getQuery()->getResult();
     }
 
+    /**
+     * @return array<Image>
+     */
     public function findNonFeaturedAndParentImages(): array
     {
         return $this->createQueryBuilder('i')

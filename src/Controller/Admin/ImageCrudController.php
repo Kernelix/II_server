@@ -273,7 +273,7 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/admin/image/add', name: 'admin_image_add', methods: ['POST'])]
-    public function addImage(Request $request, EntityManagerInterface $entityManager, ImageRepository $imageRepository)
+    public function addImage(Request $request, EntityManagerInterface $entityManager, ImageRepository $imageRepository): JsonResponse
     {
         // Получаем данные из формы
         $description = $request->request->get('description');
@@ -285,8 +285,7 @@ class ImageCrudController extends AbstractController
         $image = $imageRepository->find($id);
         Assert::that($image)->notEmpty('Изображение не найдено');
 
-        // Если запрос AJAX — возвращаем JSON
-        if ($request->isXmlHttpRequest()) {
+
             try {
                 $image->setDescription($description);
                 $image->setFilename($filename);
@@ -301,9 +300,6 @@ class ImageCrudController extends AbstractController
             } catch (\Exception $e) {
                 return new JsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
             }
-        }
-        // Перенаправляем обратно в галерею
-        return $this->redirectToRoute('admin_dashboard');
     }
 
 

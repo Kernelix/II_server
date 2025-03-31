@@ -14,7 +14,7 @@ class Image
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column]
+    #[ORM\Column(type: 'integer', nullable: false)]
     private ?int $id = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
