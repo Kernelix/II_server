@@ -53,7 +53,7 @@ class ImageCrudController extends AbstractController
             // Обработка загрузки файла
             $file = $form->get('filename')->getData();
             if ($file) {
-                $fileName = uniqid().'.'.$file->guessExtension();
+                $fileName = uniqid() . '.' . $file->guessExtension();
                 $tempDir = $this->getParameter('project_temp_dir');
 
                 // Создаем директорию при необходимости
@@ -74,19 +74,19 @@ class ImageCrudController extends AbstractController
                 $destLpath = $this->getParameter('images_l_dir');
 
                 if ($width >= 300) {
-                    ImageRender::resize($tempPath, $destSpath.$fileName, ['webp', 90], 300, null, 'scale');
+                    ImageRender::resize($tempPath, $destSpath . $fileName, ['webp', 90], 300, null, 'scale');
                 } else {
-                    $fs->copy($tempPath, $destSpath.$fileName, false);
+                    $fs->copy($tempPath, $destSpath . $fileName, false);
                 }
                 if ($width >= 1920) {
-                    ImageRender::resize($tempPath, $destMpath.$fileName, ['webp', 90], 1920, null, 'scale');
+                    ImageRender::resize($tempPath, $destMpath . $fileName, ['webp', 90], 1920, null, 'scale');
                 } else {
-                    $fs->copy($tempPath, $destMpath.$fileName, false);
+                    $fs->copy($tempPath, $destMpath . $fileName, false);
                 }
                 if ($width >= 5760) {
-                    ImageRender::resize($tempPath, $destLpath.$fileName, ['jpeg', 60], 5760, null, 'scale');
+                    ImageRender::resize($tempPath, $destLpath . $fileName, ['jpeg', 60], 5760, null, 'scale');
                 } else {
-                    $fs->copy($tempPath, $destLpath.$fileName, false);
+                    $fs->copy($tempPath, $destLpath . $fileName, false);
                 }
 
                 $fs->remove($tempPath);
@@ -117,8 +117,12 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/{id}/edit', name: 'admin_image_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, int $id, ImageRepository $imageRepository, EntityManagerInterface $entityManager): Response
-    {
+    public function edit(
+        Request $request,
+        int $id,
+        ImageRepository $imageRepository,
+        EntityManagerInterface $entityManager,
+    ): Response {
         if (!$this->getUser()) {
             return $this->redirectToRoute('admin_login'); // Перенаправление на страницу входа
         }
@@ -145,9 +149,9 @@ class ImageCrudController extends AbstractController
                 // Удаляем старое изображение
                 $oldFilename = $image->getFilename();
                 if ($oldFilename) {
-                    $oldFilePathS = $destSpath.$oldFilename;
-                    $oldFilePathM = $destMpath.$oldFilename;
-                    $oldFilePathL = $destLpath.$oldFilename;
+                    $oldFilePathS = $destSpath . $oldFilename;
+                    $oldFilePathM = $destMpath . $oldFilename;
+                    $oldFilePathL = $destLpath . $oldFilename;
                     if (file_exists($oldFilePathS)) {
                         unlink($oldFilePathS);
                     }
@@ -161,7 +165,7 @@ class ImageCrudController extends AbstractController
 
                 $tempDir = $this->getParameter('project_temp_dir');
                 // Сохраняем новое изображение
-                $fileName = uniqid().'.'.$file->guessExtension();
+                $fileName = uniqid() . '.' . $file->guessExtension();
 
                 // Создаем директорию при необходимости
                 $fs = new Filesystem();
@@ -177,19 +181,19 @@ class ImageCrudController extends AbstractController
                 $fs = new Filesystem();
 
                 if ($width >= 300) {
-                    ImageRender::resize($tempPath, $destSpath.$fileName, ['webp', 90], 300, null, 'scale');
+                    ImageRender::resize($tempPath, $destSpath . $fileName, ['webp', 90], 300, null, 'scale');
                 } else {
-                    $fs->copy($tempPath, $destSpath.$fileName, false);
+                    $fs->copy($tempPath, $destSpath . $fileName, false);
                 }
                 if ($width >= 1920) {
-                    ImageRender::resize($tempPath, $destMpath.$fileName, ['webp', 90], 1920, null, 'scale');
+                    ImageRender::resize($tempPath, $destMpath . $fileName, ['webp', 90], 1920, null, 'scale');
                 } else {
-                    $fs->copy($tempPath, $destMpath.$fileName, false);
+                    $fs->copy($tempPath, $destMpath . $fileName, false);
                 }
                 if ($width >= 5760) {
-                    ImageRender::resize($tempPath, $destLpath.$fileName, ['jpeg', 60], 5760, null, 'scale');
+                    ImageRender::resize($tempPath, $destLpath . $fileName, ['jpeg', 60], 5760, null, 'scale');
                 } else {
-                    $fs->copy($tempPath, $destLpath.$fileName, false);
+                    $fs->copy($tempPath, $destLpath . $fileName, false);
                 }
 
                 $fs->remove($tempPath);
@@ -223,12 +227,16 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/{id}', name: 'admin_image_delete', methods: ['POST'])]
-    public function delete(Request $request, int $id, ImageRepository $imageRepository, EntityManagerInterface $entityManager): Response
-    {
+    public function delete(
+        Request $request,
+        int $id,
+        ImageRepository $imageRepository,
+        EntityManagerInterface $entityManager
+    ): Response {
         $image = $imageRepository->find($id);
         Assert::that($image)->notEmpty('Изображение не найдено');
 
-        if ($this->isCsrfTokenValid('delete'.$image->getId(), $request->request->get('_token'))) {
+        if ($this->isCsrfTokenValid('delete' . $image->getId(), $request->request->get('_token'))) {
             $destSpath = $this->getParameter('images_s_dir');
             $destMpath = $this->getParameter('images_m_dir');
             $destLpath = $this->getParameter('images_l_dir');
@@ -236,9 +244,9 @@ class ImageCrudController extends AbstractController
             // Удаляем старое изображение
             $filename = $image->getFilename();
             if ($filename) {
-                $filePathS = $destSpath.$filename;
-                $filePathM = $destMpath.$filename;
-                $filePathL = $destLpath.$filename;
+                $filePathS = $destSpath . $filename;
+                $filePathM = $destMpath . $filename;
+                $filePathL = $destLpath . $filename;
                 if (file_exists($filePathS)) {
                     unlink($filePathS);
                 }
@@ -258,8 +266,11 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/{id}/toggle-publish', name: 'admin_image_toggle_publish', methods: ['POST'])]
-    public function togglePublish(int $id, ImageRepository $imageRepository, EntityManagerInterface $entityManager): Response
-    {
+    public function togglePublish(
+        int $id,
+        ImageRepository $imageRepository,
+        EntityManagerInterface $entityManager
+    ): Response {
         $image = $imageRepository->find($id);
         Assert::that($image)->notEmpty('Изображение не найдено');
         $image->setIsPublished(!$image->isPublished());
@@ -269,8 +280,11 @@ class ImageCrudController extends AbstractController
     }
 
     #[Route('/admin/image/add', name: 'admin_image_add', methods: ['POST'])]
-    public function addImage(Request $request, EntityManagerInterface $entityManager, ImageRepository $imageRepository): JsonResponse
-    {
+    public function addImage(
+        Request $request,
+        EntityManagerInterface $entityManager,
+        ImageRepository $imageRepository
+    ): JsonResponse {
         // Получаем данные из формы
         $description = $request->request->get('description');
         $filename = $request->request->get('filename');

@@ -1,13 +1,13 @@
 <?php
 
-$finder = (new PhpCsFixer\Finder())
-    ->in(__DIR__)
-    ->exclude('var')
-;
-
 return (new PhpCsFixer\Config())
     ->setRules([
-        '@Symfony' => true,
+        '@PSR12' => true,
+        // Дополнительные правила
+        'array_syntax' => ['syntax' => 'short'],
     ])
-    ->setFinder($finder)
-;
+    ->setFinder(
+        PhpCsFixer\Finder::create()
+            ->in(__DIR__.'/src')
+            ->exclude('vendor')
+    );

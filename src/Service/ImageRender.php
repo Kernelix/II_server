@@ -155,7 +155,9 @@ class ImageRender
             $tmp_img = imagecreatetruecolor($new_width, $new_height);
         }
 
-        imagecopyresampled($tmp_img, $img,
+        imagecopyresampled(
+            $tmp_img,
+            $img,
             -($rest_width / 2),
             -($rest_height / 2),
             0,

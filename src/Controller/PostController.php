@@ -53,7 +53,7 @@ final class PostController extends AbstractController
         return [
             'id' => $image->getId(),
             'description' => $image->getDescription(),
-            'thumbnail' => $this->galleryUploadDir.'/thumbs/'.$image->getFilename(),
+            'thumbnail' => $this->galleryUploadDir . '/thumbs/' . $image->getFilename(),
         ];
     }
 
