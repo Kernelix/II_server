@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Controller\Admin;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -11,7 +12,6 @@ class SecurityController extends AbstractController
     #[Route('/admin/login', name: 'admin_login')]
     public function login(AuthenticationUtils $authenticationUtils): Response
     {
-
         // Если пользователь уже авторизован, перенаправляем его на главную страницу админки
         if ($this->getUser()) {
             return $this->redirectToRoute('admin_dashboard');

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Form;
 
 use App\Entity\Image;
@@ -18,7 +19,6 @@ class ImageType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-
         if ($options['include_parent_field']) {
             $builder->add('parentId', EntityType::class, [
                 'class' => Image::class,
@@ -72,7 +72,7 @@ class ImageType extends AbstractType
             'include_description_field' => true,
             'include_videos_field' => true,
             'isPublished' => true,
-            'isFeatured' => true
+            'isFeatured' => true,
         ]);
     }
 }

@@ -55,7 +55,7 @@ class VideoCrudController extends AbstractController
 
                 if (isset($videoId)) {
                     // Формируем embed-ссылку
-                    $embedUrl = 'https://www.youtube.com/embed/' . $videoId;
+                    $embedUrl = 'https://www.youtube.com/embed/'.$videoId;
                     // Сохраняем embed-ссылку в сущность
                     $video->setYoutubeUrl($embedUrl);
                 }
@@ -77,6 +77,7 @@ class VideoCrudController extends AbstractController
     {
         $video = $videoRepository->find($id);
         Assert::that($video)->notEmpty('Видео не найдено');
+
         return $this->render('admin/video/show.html.twig', [
             'video' => $video,
         ]);
@@ -115,7 +116,7 @@ class VideoCrudController extends AbstractController
 
                 if (isset($videoId)) {
                     // Формируем embed-ссылку
-                    $embedUrl = 'https://www.youtube.com/embed/' . $videoId;
+                    $embedUrl = 'https://www.youtube.com/embed/'.$videoId;
                     // Сохраняем embed-ссылку в сущность
                     $video->setYoutubeUrl($embedUrl);
                 }
@@ -138,12 +139,11 @@ class VideoCrudController extends AbstractController
     {
         $video = $videoRepository->find($id);
         Assert::that($video)->notEmpty('Видео не найдено');
-        if ($this->isCsrfTokenValid('delete' . $video->getId(), $request->request->get('_token'))) {
+        if ($this->isCsrfTokenValid('delete'.$video->getId(), $request->request->get('_token'))) {
             $entityManager->remove($video);
             $entityManager->flush();
         }
 
         return $this->redirectToRoute('admin_video_index');
     }
-
 }

@@ -2,61 +2,60 @@
 
 namespace App\Service;
 
-use GdImage;
-
 class ImageRender
 {
     /**
-     * Создает ресурс изображения из файла
+     * Создает ресурс изображения из файла.
      *
      * @param string $filepath Путь к файлу изображения
+     *
      * @return \GdImage|false Возвращает ресурс изображения или false в случае ошибки
      */
     private static function imageCreateFromAny(string $filepath): \GdImage|false
     {
         $im = null;
         $type = exif_imagetype($filepath); // [] if you don't have exif you could use getImageSize()
-        $allowedTypes = array(
+        $allowedTypes = [
             1,  // [] gif
             2,  // [] jpg
             3,  // [] png
             6,  // [] bmp
             18, // [] webp
-        );
+        ];
         if (!in_array($type, $allowedTypes)) {
             return false;
         }
 
         switch ($type) {
-            case 1 :
-                $im = imageCreateFromGif($filepath);
+            case 1:
+                $im = imagecreatefromgif($filepath);
                 break;
-            case 2 :
-                $im = imageCreateFromJpeg($filepath);
+            case 2:
+                $im = imagecreatefromjpeg($filepath);
                 break;
-            case 3 :
-                $im = imageCreateFromPng($filepath);
+            case 3:
+                $im = imagecreatefrompng($filepath);
                 break;
-            case 6 :
-                $im = imageCreateFromBmp($filepath);
+            case 6:
+                $im = imagecreatefrombmp($filepath);
                 break;
-            case 18 :
+            case 18:
                 $im = imagecreatefromwebp($filepath);
         }
+
         return $im;
     }
-
-
 
     /**
      * Проверяет, соответствует ли изображение минимальным размерам
      *
-     * @param string $filepath Путь к файлу изображения
-     * @param array{0: int, 1: int} $size Минимальные размеры [ширина, высота]
+     * @param string                $filepath Путь к файлу изображения
+     * @param array{0: int, 1: int} $size     Минимальные размеры [ширина, высота]
+     *
      * @return bool|null Возвращает:
-     *   - true если изображение МЕНЬШЕ указанных размеров по любой из сторон
-     *   - false если изображение БОЛЬШЕ или РАВНО минимальным размерам по обеим сторонам
-     *   - null если не удалось прочитать изображение
+     *                   - true если изображение МЕНЬШЕ указанных размеров по любой из сторон
+     *                   - false если изображение БОЛЬШЕ или РАВНО минимальным размерам по обеим сторонам
+     *                   - null если не удалось прочитать изображение
      */
     public static function checkSize(string $filepath, array $size): ?bool
     {
@@ -73,40 +72,33 @@ class ImageRender
         // Освобождаем память
         imagedestroy($img);
 
-
-        return ((int)$width < $size[0]) || ((int)$height < $size[1]);
+        return ((int) $width < $size[0]) || ((int) $height < $size[1]);
     }
 
     /**
      * Изменяет размер изображения согласно заданным параметрам
      *
-     * @param string $sourcefilepath
-     * @param string $destdir
      * @param array{0: string, 1: int} $setting Настройки обработки:
-     *   - [0]: тип изображения ('webp', 'jpeg', 'png')
-     *   - [1]: качество (0-100)
-     * @param int $reqwidth
-     * @param int|null $reqheight
-     * @param string|false $type
+     *                                          - [0]: тип изображения ('webp', 'jpeg', 'png')
+     *                                          - [1]: качество (0-100)
+     *
      * @return string|false Путь к обработанному файлу или false при ошибке
      */
     public static function resize(
-        string       $sourcefilepath,
-        string       $destdir,
-        array        $setting,
-        int          $reqwidth,
-        ?int         $reqheight = null,
-        string|false $type = false
-    ): string|false
-    {
+        string $sourcefilepath,
+        string $destdir,
+        array $setting,
+        int $reqwidth,
+        ?int $reqheight = null,
+        string|false $type = false,
+    ): string|false {
         $thumbnail_path = $destdir;
         $image_file = $sourcefilepath;
 
         // Проверка поддержки WebP
-        if ($setting[0] == 'webp' && !function_exists('imagewebp')) {
+        if ('webp' == $setting[0] && !function_exists('imagewebp')) {
             throw new \RuntimeException('WebP support is not available on this server');
         }
-
 
         $img = self::imageCreateFromAny($image_file);
         if (!$img) {
@@ -116,22 +108,21 @@ class ImageRender
         $width = imagesx($img);
         $height = imagesy($img);
 
-
         // Автоматический расчет высоты при сохранении пропорций
-        if ($reqheight === null) {
-            $reqheight = (int)($height * ($reqwidth / $width));
+        if (null === $reqheight) {
+            $reqheight = (int) ($height * ($reqwidth / $width));
         }
 
         // Принудительное приведение размеров
-        $reqwidth = (int)round($reqwidth);
-        $reqheight = $reqheight == null ? null : (int)round($reqheight);
+        $reqwidth = (int) round($reqwidth);
+        $reqheight = null == $reqheight ? null : (int) round($reqheight);
 
-//        dd($orient, $width * $orient);
+        //        dd($orient, $width * $orient);
 
         $original_aspect = $width / $height;
         $thumb_aspect = $reqwidth / $reqheight;
 
-        if ($type == 'crop') {
+        if ('crop' == $type) {
             if ($original_aspect >= $thumb_aspect) {
                 $new_height = $reqheight;
                 $new_width = $width / ($height / $reqheight);
@@ -143,12 +134,11 @@ class ImageRender
             $rest_height = $new_height - $reqheight;
 
             $tmp_img = imagecreatetruecolor($reqwidth, $reqheight);
-        } else if ($type == 'scale') {
-
+        } elseif ('scale' == $type) {
             $ratio = min($reqwidth / $width, ($reqheight ?: PHP_FLOAT_MAX) / $height);
 
-            $new_width = (int)round($width * $ratio);
-            $new_height = (int)round($height * $ratio);
+            $new_width = (int) round($width * $ratio);
+            $new_height = (int) round($height * $ratio);
 
             $rest_width = 0;
             $rest_height = 0;
@@ -200,7 +190,6 @@ class ImageRender
 
         imagedestroy($img);
         imagedestroy($tmp_img);
-
 
         return $result ? $destdir : false;
     }

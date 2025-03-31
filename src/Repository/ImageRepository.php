@@ -29,6 +29,7 @@ class ImageRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
     /** @return Image[]|null */
     public function findParentImages(): ?array
     {
@@ -62,7 +63,7 @@ class ImageRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('i')
             ->andWhere('i.parentId IS NULL'); // Только родительские изображения
 
-        if ($isPublished !== null) {
+        if (null !== $isPublished) {
             $qb->andWhere('i.isPublished = :isPublished')
                 ->setParameter('isPublished', $isPublished);
         }

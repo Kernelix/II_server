@@ -1,4 +1,5 @@
 <?php
+
 namespace App\EventSubscriber;
 
 use Assert\AssertionFailedException;
@@ -19,7 +20,6 @@ class AssertionExceptionSubscriber implements EventSubscriberInterface
     public function handleException(ExceptionEvent $event): void
     {
         $exception = $event->getThrowable();
-
 
         if ($exception instanceof AssertionFailedException) {
             $response = new JsonResponse(

@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-
 use App\Entity\Image;
 use App\Repository\ImageRepository;
 use App\Repository\VideoRepository;
@@ -14,14 +13,11 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class PostController extends AbstractController
 {
-
-
     public function __construct(
         private readonly ImageRepository $imageRepository,
         private readonly VideoRepository $videoRepository,
-        private readonly string          $galleryUploadDir,
-    )
-    {
+        private readonly string $galleryUploadDir,
+    ) {
     }
 
     #[Route('/', name: 'gallery_list', methods: ['GET'])]
@@ -39,7 +35,7 @@ final class PostController extends AbstractController
         // Формируем ответ
         $result = [
             'status' => 'success',
-            'images' => []
+            'images' => [],
         ];
 
         foreach ($images as $image) {
@@ -57,14 +53,14 @@ final class PostController extends AbstractController
         return [
             'id' => $image->getId(),
             'description' => $image->getDescription(),
-            'thumbnail' => $this->galleryUploadDir . '/' . 'thumbs/' . $image->getFilename(),
+            'thumbnail' => $this->galleryUploadDir.'/thumbs/'.$image->getFilename(),
         ];
     }
 
     #[Route('/{id}', name: 'gallery_detail', methods: ['GET'])]
     public function galleryDetail(int $id): JsonResponse
     {
-// 1. Получаем родительскую картинку по её ID
+        // 1. Получаем родительскую картинку по её ID
         $parentImage = $this->imageRepository->find($id);
 
         Assert::that($parentImage)->notEmpty('Изображение не найдено');
@@ -93,12 +89,11 @@ final class PostController extends AbstractController
                 return [
                     'id' => $video->getId(),
                     'title' => $video->getTitle(),
-                    'youtubeUrl' => $video->getYoutubeUrl()
+                    'youtubeUrl' => $video->getYoutubeUrl(),
                 ];
             }, $videos),
         ];
 
         return new JsonResponse($response);
     }
-
 }
