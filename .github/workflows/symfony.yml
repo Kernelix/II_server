@@ -9,7 +9,8 @@ jobs:
   build-and-test:
     name: "Build and test Symfony application"  # Название job
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     services:
       mysql:
         image: mysql:8.0
@@ -23,6 +24,8 @@ jobs:
     steps:
       - name: "Checkout repository"  # Описание шага
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: "Setup PHP 8.3"
         uses: shivammathur/setup-php@v2
