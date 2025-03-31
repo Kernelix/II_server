@@ -2,16 +2,21 @@
 
 require __DIR__.'/../vendor/autoload.php';
 
-// Устанавливаем обязательные переменные окружения
-$_ENV['APP_ENV'] = $_ENV['APP_ENV'] ?? 'test';
-$_ENV['APP_DEBUG'] = $_ENV['APP_DEBUG'] ?? true;
-$_ENV['DATABASE_URL'] = $_ENV['DATABASE_URL'] ?? 'mysql://root:@127.0.0.1:3306/test_db?serverVersion=8.0';
+// Жестко задаем тестовые настройки
+$testEnv = [
+    'APP_ENV' => 'test',
+    'APP_DEBUG' => true,
+    'DATABASE_URL' => 'mysql://root:@127.0.0.1:3306/test_db?charset=utf8mb4&serverVersion=8.0',
+    'DATABASE_NAME' => 'test_db',
+];
 
-// Загружаем .env файл если есть
-if (file_exists(__DIR__.'/../.env')) {
-    (new Symfony\Component\Dotenv\Dotenv())->bootEnv(__DIR__.'/../.env');
+// Устанавливаем переменные окружения
+foreach ($testEnv as $key => $value) {
+    $_ENV[$key] = $_SERVER[$key] = $value;
+    putenv("$key=$value");
 }
 
+// Инициализация ядра
 $kernel = new App\Kernel($_ENV['APP_ENV'], (bool) $_ENV['APP_DEBUG']);
 $kernel->boot();
 
