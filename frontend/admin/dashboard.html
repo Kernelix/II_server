@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+</head>
+<body>
+<h1>Панель управления</h1>
+<button id="logoutBtn">Выйти</button>
+
+<script>
+    // Проверка авторизации при загрузке
+    if (!localStorage.getItem('jwt_token')) {
+        window.location.href = '/admin/login.html';
+    }
+
+    // Функция выхода
+    async function logout() {
+        try {
+            const token = localStorage.getItem('jwt_token');
+            if (token) {
+                await fetch('http://127.0.0.1:8000/api/admin/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+            }
+
+            localStorage.removeItem('jwt_token');
+            window.location.href = '/admin/login.html';
+
+        } catch (error) {
+            console.error('Ошибка выхода:', error);
+            window.location.href = '/admin/login.html';
+        }
+    }
+
+    // Назначение обработчика
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+</script>
+</body>
+</html>

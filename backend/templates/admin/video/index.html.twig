@@ -1,0 +1,70 @@
+{% extends '@Admin/base.html.twig' %}
+
+{% block title %}Video List{% endblock %}
+
+{% block body %}
+    <div class="container">
+        {# Шапка с кнопками #}
+        <header class="d-flex justify-content-between align-items-center mb-4 py-3 border-bottom">
+            <h1 class="h3 mb-0">Video List</h1>
+            <div>
+                <a href="{{ path('admin_dashboard') }}" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-arrow-left"></i> Back to Admin Dashboard
+                </a>
+                <a href="{{ path('admin_video_new') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create New
+                </a>
+            </div>
+        </header>
+
+        {# Список видео #}
+        <div class="row">
+            {% for video in videos %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            {# Заголовок видео #}
+                            <h5 class="card-title">{{ video.title }}</h5>
+
+                            {# Встроенное видео #}
+                            <div class="ratio ratio-16x9 mb-3">
+                                {% if video.youtubeUrl %}
+                                    <iframe
+                                            src="{{ video.youtubeUrl }}"
+                                            frameborder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowfullscreen>
+                                    </iframe>
+                                {% else %}
+                                    <div class="d-flex align-items-center justify-content-center bg-light text-muted" style="height: 100%;">
+                                        No video available.
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            {# Кнопки действий #}
+                            <div class="d-flex gap-2">
+                                <a href="{{ path('admin_video_show', {'id': video.id}) }}" class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-eye"></i> Show
+                                </a>
+                                <a href="{{ path('admin_video_edit', {'id': video.id}) }}" class="btn btn-sm btn-outline-warning">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <form action="{{ path('admin_video_delete', {'id': video.id}) }}" method="post" class="d-inline" onsubmit="return confirm('Are you sure?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ video.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="col-12">
+                    <p class="text-center text-muted">No videos found.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

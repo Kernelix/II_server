@@ -1,6 +1,9 @@
-сделать composer install
-накатить миграции php bin/console doctrine:migrations:migrate
-запустить фикстуру php bin/console doctrine:fixtures:load --append
+1. **Установка зависимостей**
+   ```bash
+   composer install
+   php bin/console doctrine:migrations:migrate
+   php bin/console doctrine:fixtures:load --append
+
 <hr>
 <center>
 <h1>АРХИТЕКТУРНЫЙ КОНЦЕПТ</h1>

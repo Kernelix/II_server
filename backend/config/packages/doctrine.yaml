@@ -1,0 +1,69 @@
+doctrine:
+    dbal:
+        url: '%env(resolve:DATABASE_URL)%'
+        profiling_collect_backtrace: '%kernel.debug%'
+        use_savepoints: true
+        # Раскомментируйте для PostgreSQL:
+        # server_version: '16'
+        # Для MySQL/MariaDB:
+        server_version: '8.0'
+
+    orm:
+        auto_generate_proxy_classes: '%kernel.debug%'
+        enable_lazy_ghost_objects: true
+        proxy_dir: '%kernel.build_dir%/doctrine/orm/Proxies'
+
+        entity_managers:
+            default:
+                naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+                auto_mapping: true
+
+                metadata_cache_driver:
+                    type: pool
+                    pool: doctrine.metadata_cache_pool
+
+                query_cache_driver:
+                    type: pool
+                    pool: doctrine.query_cache_pool
+
+                result_cache_driver:
+                        type: pool
+                        pool: doctrine.result_cache_pool
+
+                mappings:
+                    App:
+                        type: attribute
+                        dir: '%kernel.project_dir%/src/Entity'
+                        prefix: 'App\Entity'
+
+when@test:
+    doctrine:
+        dbal:
+            dbname_suffix: '_test%env(default::TEST_TOKEN)%'
+
+when@prod:
+    doctrine:
+        orm:
+            auto_generate_proxy_classes: false
+            metadata_cache_driver:
+                type: pool
+                pool: doctrine.metadata_cache_pool
+
+    framework:
+        cache:
+            pools:
+                doctrine.metadata_cache_pool:
+                    adapter: cache.adapter.chain
+                    providers:
+                        - cache.adapter.redis
+                        - cache.adapter.filesystem
+                doctrine.query_cache_pool:
+                    adapter: cache.adapter.chain
+                    providers:
+                        - cache.adapter.redis
+                        - cache.adapter.filesystem
+                doctrine.result_cache_pool:
+                    adapter: cache.adapter.chain
+                    providers:
+                        - cache.adapter.redis
+                        - cache.adapter.filesystem

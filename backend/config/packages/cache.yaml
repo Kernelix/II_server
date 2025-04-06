@@ -1,0 +1,38 @@
+framework:
+    cache:
+        default_redis_provider: 'redis://%env(REDIS_HOST)%:%env(REDIS_PORT)%?timeout=0.3&connect_timeout=0.1'
+
+
+        pools:
+            app.cache:
+                adapter: chain
+                adapters:
+                    - cache.adapter.redis
+                    - cache.adapter.filesystem
+                default_lifetime: 2629800000
+                early_expiration_message_bus: messenger.default_bus
+                public: true
+
+            doctrine.metadata_cache_pool:
+                adapter: chain
+                adapters:
+                    - cache.adapter.redis
+                    - cache.adapter.filesystem
+                default_lifetime: 2629800000  # 1 месяц (в секундах)
+                public: true
+
+            doctrine.query_cache_pool:
+                adapter: chain
+                adapters:
+                    - cache.adapter.redis
+                    - cache.adapter.filesystem
+                default_lifetime: 2629800000
+                public: true
+
+            doctrine.result_cache_pool:
+                adapter: chain
+                adapters:
+                    - cache.adapter.redis
+                    - cache.adapter.filesystem
+                default_lifetime: 2629800000
+                public: true

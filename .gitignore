@@ -2,10 +2,10 @@
 /.env.local
 /.env.local.php
 /.env.*.local
-/config/secrets/prod/prod.decrypt.private.php
-/public/bundles/
-/var/
-/vendor/
+/backend/config/secrets/prod/prod.decrypt.private.php
+/backend/public/bundles/
+/backend/var/
+/backend/vendor/
 ###< symfony/framework-bundle ###
 
 ###> phpunit/phpunit ###
@@ -19,8 +19,8 @@
 ###< symfony/phpunit-bridge ###
 
 ###> symfony/asset-mapper ###
-/public/assets/
-/assets/vendor/
+/backend/public/assets/
+/backend/assets/vendor/
 ###< symfony/asset-mapper ###
 
 ###> phpstan/phpstan ###
@@ -29,10 +29,10 @@ phpstan.neon
 
 ###> friendsofphp/php-cs-fixer ###
 /.php-cs-fixer.php
-/.php-cs-fixer.cache
+/backend/.php-cs-fixer.cache
 ###< friendsofphp/php-cs-fixer ###
 
 ###> squizlabs/php_codesniffer ###
-/.phpcs-cache
+/backend/.phpcs-cache
 /phpcs.xml
 ###< squizlabs/php_codesniffer ###

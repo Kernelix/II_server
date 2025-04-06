@@ -1,0 +1,34 @@
+security:
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+        App\Entity\User:
+            algorithm: auto
+
+    providers:
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: email
+
+    firewalls:
+        admin_login:
+            pattern: ^/api/admin/login
+            stateless: true
+            json_login:
+                check_path: /api/admin/login
+                username_path: email        # Используем email вместо username
+                password_path: password
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
+        admin_api:
+            pattern: ^/api/admin
+            stateless: true
+            provider: app_user_provider
+            jwt: ~
+            context: admin
+
+    access_control:
+        - { path: ^/api/admin/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/admin/logout, roles: IS_AUTHENTICATED_FULLY }
+        - { path: ^/api/admin, roles: ROLE_ADMIN }
