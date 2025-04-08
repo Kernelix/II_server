@@ -13,9 +13,6 @@ jobs:
   build-and-test:
     name: "Build and test Symfony application"
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
     permissions:
       contents: write
     services:

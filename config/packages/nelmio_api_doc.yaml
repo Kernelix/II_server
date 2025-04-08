@@ -1,0 +1,54 @@
+nelmio_api_doc:
+    documentation:
+        info:
+            title: 'API Documentation'
+            version: '1.0.0'
+            description: 'Документация по API'
+        components:
+            schemas:
+                Image:
+                    type: object
+                    properties:
+                        id:
+                            type: integer
+                            example: 1
+                        filename:
+                            type: string
+                            example: 'abc123.jpg'
+                        description:
+                            type: string
+                            nullable: true
+                            example: 'Описание изображения'
+                        isPublished:
+                            type: boolean
+                            example: true
+                        isFeatured:
+                            type: boolean
+                            example: false
+
+                GalleryImage:
+                    type: object
+                    properties:
+                        id:
+                            type: integer
+                            example: 1
+                            description: 'Уникальный ID изображения'
+                        description:
+                            type: string
+                            nullable: true
+                            example: 'Описание изображения'
+                        filename:
+                            type: string
+                            example: 'image.jpg'
+                        _links:
+                            type: object
+                            properties:
+                                self:
+                                    type: string
+                                    format: uri
+                                    example: '/api/gallery/1'
+    areas:
+        path_patterns: # an array of regexps (document only routes under /api, except /api/doc)
+            - '^/api'
+        host_patterns: # document only routes with a host of the form api.*
+            - '^.*$'
