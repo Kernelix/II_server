@@ -1,5 +1,9 @@
 1. **Установка зависимостей**
    ```bash
+   cd docker/php 
+   docker compose up -d --build
+   docker exec -it ii_server-php-1 /bin/sh
+   Внутри контейнера выполнить:
    composer install
    php bin/console doctrine:migrations:migrate
    php bin/console doctrine:fixtures:load --append
