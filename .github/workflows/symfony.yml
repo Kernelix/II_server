@@ -47,8 +47,7 @@ jobs:
           docker-compose -f docker-compose.ci.yml exec -T php bash -c '
           export REDIS_URL=redis://redis:6379
           export DATABASE_URL="mysql://root:root@mysql:3306/sentihell?serverVersion=8.0.41"
-          vendor/bin/phpstan analyse --configuration=phpstan.neon
-    '
+          vendor/bin/phpstan analyse --configuration=phpstan.neon'
 
       - name: "CS Checks"
         run: |
