@@ -53,11 +53,10 @@ jobs:
           vendor/bin/phpstan analyse --configuration=phpstan.neon'
 
       - name: Run PHP-CS-Fixer
-        run: docker-compose exec -T php php-cs-fixer fix --dry-run --diff --verbose
+        run: docker-compose exec -T php php-cs-fixer fix --diff --verbose
 
       - name: Apply fixes
         run: |
-                docker-compose exec -T php php-cs-fixer fix
                 docker-compose exec -T php phpcbf --standard=PSR12 src/ || echo "PHPCBF made some fixes"
 
       - name: Final check
