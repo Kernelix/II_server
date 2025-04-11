@@ -1,8 +1,7 @@
 services:
   php:
     build:
-      context: .
-      dockerfile: docker/php/Dockerfile
+      context: ./docker/php
     environment:
       DATABASE_URL: "mysql://root:root@mysql:3306/sentihell?serverVersion=8.0.41"
       APP_ENV: test
