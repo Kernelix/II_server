@@ -8,6 +8,7 @@ use App\Entity\Video;
 use App\Repository\VideoRepository;
 use App\Repository\ImageRepository;
 use OpenApi\Attributes as OA;
+use Psr\Log\LoggerInterface;
 use RedisException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,7 +24,8 @@ class VideoCrudController extends AbstractController
 {
     public function __construct(
         private readonly VideoRepository $videoRepository,
-        private readonly ImageRepository $imageRepository
+        private readonly ImageRepository $imageRepository,
+        private readonly LoggerInterface $logger
     ) {
     }
 
@@ -148,6 +150,12 @@ class VideoCrudController extends AbstractController
         } catch (\InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (RedisException $e) {
+            // Логируем ошибку Redis, но продолжаем работу
+            $this->logger->error('Redis error while clearing cache', ['exception' => $e]);
+            return $this->json(
+                $this->entityToDto($video),
+                Response::HTTP_CREATED
+            );
         }
     }
 
@@ -278,6 +286,8 @@ class VideoCrudController extends AbstractController
         } catch (\InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (RedisException $e) {
+            $this->logger->error('Redis error while clearing cache', ['exception' => $e]);
+            return $this->json($this->entityToDto($video));
         }
     }
 
