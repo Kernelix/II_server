@@ -1,4 +1,4 @@
-name: "Symfony Backend CI Pipeline"
+name: "Symfony Backend CI Pipeline (Docker)"
 on:
   push:
     branches: [ "main" ]
@@ -7,78 +7,46 @@ on:
 
 jobs:
   build-and-test:
-    name: "Build and test Symfony application"
+    name: "Build and test with Docker"
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: sentihell
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: "Setup PHP 8.3"
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql
-          coverage: none
-          tools: composer:2.7.7
+      - name: "Set up Docker"
+        uses: docker/setup-buildx-action@v2
 
-      - name: Validate composer
+      - name: "Start containers"
         run: |
-          composer validate --no-check-lock
-          if ! composer install --dry-run 2>&1 | grep -q "Nothing to install"; then
-            echo "::warning::composer.lock требует обновления. Запустите: composer update"
-          fi
-
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
-
-      - name: "Setup environment"
-        run: |
-          echo "DATABASE_URL=mysql://root:root@127.0.0.1:3306/sentihell?serverVersion=8&charset=utf8mb4" > .env.test
-          echo "APP_ENV=test" >> .env.test
-          echo "APP_SECRET=testsecret" >> .env.test
+          docker-compose -f docker-compose.ci.yml up -d
+          docker-compose -f docker-compose.ci.yml ps
 
       - name: "Wait for MySQL"
         run: |
-          for i in {1..10}; do
-            mysqladmin ping -h 127.0.0.1 -u root -proot --silent && break || sleep 5
-          done
+          docker-compose -f docker-compose.ci.yml exec -T mysql bash -c 'while ! mysqladmin ping -uroot --silent; do sleep 1; done'
 
-      - name: "Prepare database"
+      - name: "Run tests"
         run: |
-          php bin/console doctrine:database:create --if-not-exists --env=test
-          php bin/console doctrine:schema:update --force --complete --env=test
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'composer install'
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:database:create --if-not-exists --env=test'
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:schema:update --force --complete --env=test'
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console lint:container'
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/phpstan analyse src --level=5'
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/phpunit'
 
-      - name: "Run linting"
+      - name: "CS Checks"
         run: |
-          php bin/console lint:container
-          php bin/console lint:yaml config
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/php-cs-fixer fix --dry-run --diff'
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c './vendor/bin/phpcs --standard=PSR12 --colors -p --warning-severity=0 src/'
 
-      - name: "Run PHPStan"
-        run: vendor/bin/phpstan analyse src --level=5 --no-progress
-
-      - name: "Run PHP-CS-Fixer"
-        run: vendor/bin/php-cs-fixer fix --dry-run --diff
-
-      - name: "PSR-12 Check and Fix"
+      - name: "Push fixes"
+        if: failure()
         run: |
-          composer require --dev squizlabs/php_codesniffer
-          ./vendor/bin/phpcbf --standard=PSR12 src/ || true
-          ./vendor/bin/phpcs --standard=PSR12 --colors -p --warning-severity=0 src/
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add .
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated PSR-12 fixes" && git push)
+          git commit -m "Automated PSR-12 fixes" || true
+          git push || true
