@@ -40,8 +40,15 @@ jobs:
           docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:database:create --if-not-exists --env=test'
           docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:schema:update --force --complete --env=test'
           docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console lint:container'
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/phpstan analyse src --level=5'
           docker-compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/phpunit'
+          
+      - name: "Run PHPStan"
+        run: |
+          docker-compose -f docker-compose.ci.yml exec -T php bash -c '
+          export REDIS_URL=redis://redis:6379
+          export DATABASE_URL="mysql://root:root@mysql:3306/sentihell?serverVersion=8.0.41"
+          vendor/bin/phpstan analyse --configuration=phpstan.neon
+    '
 
       - name: "CS Checks"
         run: |
