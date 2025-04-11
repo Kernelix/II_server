@@ -6,6 +6,8 @@ use App\Entity\Video;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
+use Psr\Cache\InvalidArgumentException;
+use RedisException;
 
 /**
  * @extends ServiceEntityRepository<Video>
@@ -77,25 +79,30 @@ class VideoRepository extends ServiceEntityRepository
 
 
     /**
-     * Очищает кэш видео
+     * Очищает кэш видео в Redis по ID видео
+     * @param int|null $videoId ID видео (null - очищает весь кеш видео)
+     * @throws RedisException
      */
-    public function clearVideoCache(array $types = []): void
+    public function clearVideoCache(?int $videoId = null): void
     {
         $cache = $this->getEntityManager()->getConfiguration()->getResultCache();
-        $keys = [
-            'all' => 'all_videos'
-        ];
 
-        if (empty($types)) {
-            foreach ($keys as $key) {
-                $cache->delete($key);
-            }
-        } else {
-            foreach ($types as $type) {
-                if (isset($keys[$type])) {
-                    $cache->delete($keys[$type]);
+        if (!$cache instanceof \Redis && !$cache instanceof \Predis\Client) {
+            throw new \RuntimeException('Cache adapter is not Redis');
+        }
+
+        if ($videoId === null) {
+            // Очищаем все ключи вида 'videos_*' (используем SCAN для больших БД)
+            $iterator = null;
+            do {
+                $keys = $cache->scan($iterator, 'videos_*', 1000);
+                if (!empty($keys)) {
+                    $cache->del($keys);
                 }
-            }
+            } while ($iterator > 0);
+        } else {
+            // Очищаем конкретный ключ видео
+            $cache->del(['videos_' . $videoId]);
         }
     }
 }

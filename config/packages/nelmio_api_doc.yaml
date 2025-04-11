@@ -47,6 +47,33 @@ nelmio_api_doc:
                                     type: string
                                     format: uri
                                     example: '/api/gallery/1'
+
+                Video:
+                    type: object
+                    properties:
+                        id:
+                            type: integer
+                            example: 1
+                        title:
+                            type: string
+                            nullable: true
+                            example: "Обзор продукта"
+                        youtube_url:
+                            type: string
+                            nullable: true
+                            example: "https://www.youtube.com/embed/dQw4w9WgXcQ"
+                        image_id:
+                            type: integer
+                            nullable: true
+                            example: 5
+                        image:
+                            type: object
+                            nullable: true
+                            properties:
+                                id:
+                                    type: integer
+                                filename:
+                                    type: string
     areas:
         path_patterns: # an array of regexps (document only routes under /api, except /api/doc)
             - '^/api'

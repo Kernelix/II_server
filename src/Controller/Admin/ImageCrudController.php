@@ -6,6 +6,7 @@ use App\Entity\Image;
 use App\Repository\ImageRepository;
 use App\Service\ImageRender;
 use OpenApi\Attributes as OA;
+use Psr\Cache\InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -140,6 +141,9 @@ class ImageCrudController extends AbstractController
         return $this->json($image);
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
     #[Route('/{id}', name: 'api_admin_images_update', methods: ['PUT', 'PATCH'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Put(

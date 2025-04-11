@@ -8,8 +8,8 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\CacheInterface;
-use Symfony\Component\Cache\CacheItem;
 
 #[AsCommand(
     name: 'app:cache:set',
@@ -18,7 +18,7 @@ use Symfony\Component\Cache\CacheItem;
 class CacheSetCommand extends Command
 {
     public function __construct(
-        private CacheInterface $cache
+        private readonly CacheInterface $cache
     ) {
         parent::__construct();
     }
@@ -40,7 +40,7 @@ class CacheSetCommand extends Command
         $value = $input->getArgument('value');
         $ttl = $input->getArgument('ttl');
 
-        $this->cache->get($key, function (CacheItem $item) use ($value, $ttl) {
+        $this->cache->get($key, function (ItemInterface $item) use ($value, $ttl) {
             if ($ttl) {
                 $item->expiresAfter((int)$ttl);
             }

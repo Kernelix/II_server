@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Image;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Psr\Cache\InvalidArgumentException;
 
 /**
  * @method Image|null find($id, $lockMode = null, $lockVersion = null)
@@ -119,6 +120,7 @@ class ImageRepository extends ServiceEntityRepository
      * Очищает кэш изображений с возможностью фильтрации по типам.
      *
      * @param array $types Очистить только указанные типы ['videos', 'parents', 'featured']
+     * @throws InvalidArgumentException
      */
     public function clearImageCache(array $types = [], ?int $id = null): void
     {
@@ -140,13 +142,11 @@ class ImageRepository extends ServiceEntityRepository
         }
 
         if (empty($types)) {
-            foreach ($keys as $key) {
-                $cache->delete($key);
-            }
+            $cache->deleteItems($keys); // Удаление нескольких ключей
         } else {
             foreach ($types as $type) {
                 if (isset($keys[$type])) {
-                    $cache->delete($keys[$type]);
+                    $cache->deleteItem($keys[$type]); // Удаление одного ключа
                 }
             }
         }

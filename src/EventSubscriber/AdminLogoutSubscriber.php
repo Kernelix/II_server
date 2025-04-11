@@ -1,16 +1,12 @@
 <?php
+
 namespace App\EventSubscriber;
 
-use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\Security\Http\Event\LogoutEvent;
 
 class AdminLogoutSubscriber implements EventSubscriberInterface
 {
-    public function __construct(
-        private JWTTokenManagerInterface $jwtManager
-    ) {}
-
     public static function getSubscribedEvents(): array
     {
         return [
@@ -22,8 +18,6 @@ class AdminLogoutSubscriber implements EventSubscriberInterface
     {
         $request = $event->getRequest();
         $response = $event->getResponse();
-
-
         if ($request->isXmlHttpRequest() || str_contains($request->headers->get('Accept'), 'application/json')) {
             $response->setContent(json_encode(['status' => 'success']));
             $response->headers->set('Content-Type', 'application/json');
