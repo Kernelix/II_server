@@ -9,12 +9,13 @@ services:
       APP_SECRET: testsecret
     volumes:
       - .:/var/www
+      - .git:/var/www/.git
     depends_on:
       mysql:
         condition: service_healthy
 
   mysql:
-    image: mysql:8.0
+    image: mysql:8.0.41
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: sentihell

@@ -25,4 +25,10 @@ RUN mv /usr/local/etc/php/conf.d/xdebug.ini /usr/local/etc/php/conf.d/docker-php
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Установка PHP-CS-Fixer и PHP_CodeSniffer
+RUN composer global require friendsofphp/php-cs-fixer squizlabs/php_codesniffer \
+    && ln -s /root/.composer/vendor/bin/php-cs-fixer /usr/local/bin/php-cs-fixer \
+    && ln -s /root/.composer/vendor/bin/phpcs /usr/local/bin/phpcs \
+    && ln -s /root/.composer/vendor/bin/phpcbf /usr/local/bin/phpcbf
+
 WORKDIR /var/www
