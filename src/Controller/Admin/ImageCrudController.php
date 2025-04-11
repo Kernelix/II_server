@@ -9,7 +9,7 @@ use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -108,7 +108,7 @@ class ImageCrudController extends AbstractController
                 ->setIsFeatured($request->get('isFeatured', false));
 
             $this->imageRepository->save($image, true);
-            $this->imageRepository->clearImageCache();
+            $this->imageRepository->clearImageCache([], $image->getId());
 
             return $this->json($image, 201);
         } catch (\Exception $e) {
@@ -175,7 +175,7 @@ class ImageCrudController extends AbstractController
             ->setIsFeatured($data['isFeatured'] ?? $image->isFeatured());
 
         $this->imageRepository->save($image, true);
-        $this->imageRepository->clearImageCache();
+        $this->imageRepository->clearImageCache([], $id);
 
         return $this->json($image);
     }
@@ -199,7 +199,7 @@ class ImageCrudController extends AbstractController
 
         $this->deleteImageFiles($image->getFilename());
         $this->imageRepository->remove($image, true);
-        $this->imageRepository->clearImageCache();
+        $this->imageRepository->clearImageCache([], $id);
 
         return $this->json(null, 204);
     }

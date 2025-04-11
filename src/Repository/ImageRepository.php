@@ -120,7 +120,7 @@ class ImageRepository extends ServiceEntityRepository
      *
      * @param array $types Очистить только указанные типы ['videos', 'parents', 'featured']
      */
-    public function clearImageCache(array $types = []): void
+    public function clearImageCache(array $types = [], ?int $id = null): void
     {
         $cache = $this->getEntityManager()->getConfiguration()->getResultCache();
         $keys = [
@@ -129,8 +129,15 @@ class ImageRepository extends ServiceEntityRepository
             'full' => 'images_with_videos_and_parent',
             'filtered_published' => 'filtered_images_published',
             'filtered_unpublished' => 'filtered_images_unpublished',
-            'non_featured' => 'non_featured_parent_images'
+            'non_featured' => 'non_featured_parent_images',
+            'gallery' => 'gallery_list_query'
         ];
+
+        // Добавляем динамические ключи, если передан id
+        if ($id !== null) {
+            $keys['child_images'] = 'child_images_' . $id;
+            $keys['specific_videos'] = 'videos_' . $id;
+        }
 
         if (empty($types)) {
             foreach ($keys as $key) {

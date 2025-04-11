@@ -13,12 +13,11 @@ services:
     App\EventSubscriber\AdminLogoutSubscriber:
         tags: [ kernel.event_subscriber ]
 
-    redis_connection:
+    Redis:
         class: Redis
         factory: [ 'Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection' ]
         arguments:
-            - 'redis://%env(REDIS_HOST)%:%env(REDIS_PORT)%?timeout=0.5&connect_timeout=0.3'
-            - { retry_interval: 1, retry_timeout: 5 } # Параметры повтора
+            - '%env(REDIS_URL)%'
 
     App\EventSubscriber\AssertionExceptionSubscriber:
         tags:
