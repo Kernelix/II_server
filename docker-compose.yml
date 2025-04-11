@@ -6,7 +6,7 @@ services:
       - .:/var/www
     environment:
       APP_ENV: dev
-      DATABASE_URL: mysql://root@mysql:3306/sentihell?serverVersion=8.0
+      DATABASE_URL: mysql://root@mysql:3306/sentihell?serverVersion=8.0.41
       REDIS_URL: redis://redis:6379
       XDEBUG_MODE: develop,debug
       XDEBUG_CONFIG: "client_host=host.docker.internal client_port=9004 discover_client_host=0"
