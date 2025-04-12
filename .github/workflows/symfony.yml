@@ -23,11 +23,6 @@ jobs:
       - name: "Set up Docker"
         uses: docker/setup-buildx-action@v2
 
-      - name: Configure Git safely
-        run: |
-                docker-compose exec -T php git config --global --add safe.directory /var/www
-                docker-compose exec -T php git config --global user.email "actions@github.com"
-                docker-compose exec -T php git config --global user.name "GitHub Actions"
 
       - name: "Install Docker Compose"
         run: |
@@ -39,6 +34,12 @@ jobs:
         run: |
           docker-compose -f docker-compose.ci.yml up -d --build
           docker-compose -f docker-compose.ci.yml ps
+
+      - name: Configure Git safely
+        run: |
+          docker-compose -f docker-compose.ci.yml exec -T php git config --global --add safe.directory /var/www
+          docker-compose -f docker-compose.ci.yml exec -T php git config --global user.email "actions@github.com"
+          docker-compose -f docker-compose.ci.yml exec -T php git config --global user.name "GitHub Actions"
 
       - name: "Wait for MySQL"
         run: |
@@ -72,15 +73,13 @@ jobs:
       - name: Commit and push
         if: success()
         run: |
-                docker-compose exec -T php sh -c '
-                  git config --global user.email "actions@github.com" &&
-                  git config --global user.name "GitHub Actions" &&
-                  git add . &&
-                  if git diff --quiet --cached; then
-                    echo "No changes to commit"
-                  else
-                    git commit -m "Apply automatic code style fixes [skip ci]" &&
-                    git pull --rebase &&
-                    git push
-                  fi
-                '
+          docker-compose -f docker-compose.ci.yml exec -T php sh -c '
+          git add . &&
+          if ! git diff --cached --quiet; then
+          git commit -m "Apply automatic code style fixes [skip ci]" &&
+          git pull --rebase origin main &&
+          git push origin main
+          else
+          echo "No changes to commit"
+          fi
+          '
