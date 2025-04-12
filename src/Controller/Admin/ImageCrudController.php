@@ -2,14 +2,20 @@
 
 namespace App\Controller\Admin;
 
+use App\Dto\Image\ImageOutputDto;
+use App\Dto\Video\VideoDto;
 use App\Entity\Image;
+use App\Entity\Video;
 use App\Repository\ImageRepository;
+use App\Repository\VideoRepository;
 use App\Service\ImageRender;
 use OpenApi\Attributes as OA;
 use Psr\Cache\InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Filesystem\Filesystem;
@@ -19,7 +25,8 @@ use Symfony\Component\Filesystem\Filesystem;
 class ImageCrudController extends AbstractController
 {
     public function __construct(
-        private readonly ImageRepository $imageRepository
+        private readonly ImageRepository $imageRepository,
+        private readonly VideoRepository $videoRepository
     ) {
     }
 
@@ -61,8 +68,8 @@ class ImageCrudController extends AbstractController
                 schema: new OA\Schema(
                     properties: [
                         new OA\Property(property: 'image', type: 'string', format: 'binary'),
-                        new OA\Property(property: 'description', type: 'string'),
-                        new OA\Property(property: 'isFeatured', type: 'boolean')
+                        new OA\Property(property: 'description', type: 'string', nullable: true),
+                        new OA\Property(property: 'isFeatured', type: 'boolean', nullable: true)
                     ]
                 )
             )
@@ -90,19 +97,8 @@ class ImageCrudController extends AbstractController
         }
 
         try {
-            $fileName = uniqid() . 'Admin.' . $uploadedFile->guessExtension();
-            $tempDir = $this->getParameter('project_temp_dir');
-
-            $fs = new Filesystem();
-            $fs->mkdir($tempDir, 0755);
-
-            $tempPath = $uploadedFile->move($tempDir, $fileName);
-            $imageInfo = getimagesize($tempPath);
-            $width = $imageInfo[0];
-
-            // Генерация 3 размеров
-            $this->generateImageVersions($tempPath, $fileName, $width);
-            $fs->remove($tempPath);
+            $fileName = uniqid() . "."  . $uploadedFile->guessExtension();
+            $this->extracted($uploadedFile, $fileName);
 
             $image->setFilename($fileName)
                 ->setDescription($request->get('description'))
@@ -110,10 +106,11 @@ class ImageCrudController extends AbstractController
 
             $this->imageRepository->save($image, true);
             $this->imageRepository->clearImageCache([], $image->getId());
-
-            return $this->json($image, 201);
+            return $this->json($image, Response::HTTP_CREATED);
+        } catch (InvalidArgumentException $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], 500);
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -144,16 +141,57 @@ class ImageCrudController extends AbstractController
     /**
      * @throws InvalidArgumentException
      */
+    /**
+     * @throws InvalidArgumentException
+     */
     #[Route('/{id}', name: 'api_admin_images_update', methods: ['PUT', 'PATCH'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Put(
         summary: 'Обновление изображения',
         requestBody: new OA\RequestBody(
-            content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: 'description', type: 'string'),
-                    new OA\Property(property: 'isFeatured', type: 'boolean')
-                ]
+            description: 'Данные для обновления изображения (multipart/form-data)',
+            content: new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    properties: [
+                        new OA\Property(
+                            property: 'image',
+                            description: 'Файл изображения',
+                            type: 'string',
+                            format: 'binary'
+                        ),
+                        new OA\Property(
+                            property: 'description',
+                            type: 'string',
+                            nullable: true
+                        ),
+                        new OA\Property(
+                            property: 'isFeatured',
+                            type: 'boolean',
+                            nullable: true
+                        ),
+                        new OA\Property(
+                            property: 'parentId',
+                            description: 'ID родительского изображения',
+                            type: 'integer',
+                            nullable: true
+                        ),
+                        new OA\Property(
+                            property: 'videos',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'id', type: 'integer'),
+                                    new OA\Property(property: 'title', type: 'string'),
+                                    new OA\Property(property: 'youtube_url', type: 'string')
+                                ],
+                                type: 'object'
+                            ),
+                            nullable: true
+                        )
+                    ],
+                    type: 'object'
+                )
             )
         ),
         parameters: [new OA\Parameter(name: 'id', in: 'path')],
@@ -163,6 +201,15 @@ class ImageCrudController extends AbstractController
                 description: 'Изображение обновлено',
                 content: new OA\JsonContent(ref: '#/components/schemas/Image')
             ),
+            new OA\Response(
+                response: 400,
+                description: 'Неверные данные',
+                content: new OA\JsonContent(
+                    properties: [
+                            new OA\Property(property: 'error', type: 'string')
+                        ]
+                )
+            ),
             new OA\Response(response: 404, description: 'Не найдено')
         ]
     )]
@@ -170,20 +217,119 @@ class ImageCrudController extends AbstractController
     {
         $image = $this->imageRepository->find($id);
         if (!$image) {
-            return $this->json(['error' => 'Image not found'], 404);
+            return $this->json(['error' => 'Image not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $data = json_decode($request->getContent(), true);
+        // Инициализация данных
+        $data = [];
+        $uploadedFile = null;
 
-        $image->setDescription($data['description'] ?? $image->getDescription())
-            ->setIsFeatured($data['isFeatured'] ?? $image->isFeatured());
+        // Обработка multipart/form-data для PUT/PATCH
+        if (str_contains($request->headers->get('Content-Type'), 'multipart/form-data')) {
+            // Парсинг multipart данных вручную
+            $content = $request->getContent();
+            $boundary = substr($content, 0, strpos($content, "\r\n"));
 
-        $this->imageRepository->save($image, true);
-        $this->imageRepository->clearImageCache([], $id);
+            if ($boundary) {
+                // Разбиваем на части
+                $parts = array_slice(explode($boundary, $content), 1);
 
-        return $this->json($image);
+                foreach ($parts as $part) {
+                    if ($part == "--\r\n") {
+                        break; // Конец данных
+                    }
+
+                    // Получаем headers и content
+                    $part = ltrim($part, "\r\n");
+                    list($rawHeaders, $body) = explode("\r\n\r\n", $part, 2);
+
+                    // Парсим headers
+                    $headers = [];
+                    foreach (explode("\r\n", $rawHeaders) as $header) {
+                        list($name, $value) = explode(':', $header, 2);
+                        $headers[strtolower(trim($name))] = trim($value);
+                    }
+
+                    // Обработка файла
+                    if (isset($headers['content-disposition'])) {
+                        preg_match('/name="([^"]+)"/', $headers['content-disposition'], $matches);
+                        $fieldName = $matches[1] ?? null;
+
+                        if ($fieldName === 'image' && isset($headers['content-type'])) {
+                            // Создаем временный файл
+                            $tempFile = tmpfile();
+                            fwrite($tempFile, $body);
+                            $tempFilePath = stream_get_meta_data($tempFile)['uri'];
+
+                            $uploadedFile = new UploadedFile(
+                                $tempFilePath,
+                                $matches['filename'] ?? uniqid(),
+                                $headers['content-type'],
+                                null,
+                                true
+                            );
+                        } else {
+                            // Обычные поля формы
+                            $data[$fieldName] = substr($body, 0, -2); // Удаляем \r\n в конце
+                        }
+                    }
+                }
+            }
+        } else {
+            $data = json_decode($request->getContent(), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return $this->json(['error' => 'Invalid JSON data'], Response::HTTP_BAD_REQUEST);
+            }
+        }
+
+        try {
+            if ($request->files->has('image')) {
+                $uploadedFile = $request->files->get('image');
+                if ($uploadedFile instanceof UploadedFile) {
+                    // Генерация уникального имени файла
+                    $fileName = uniqid() . '.' . $uploadedFile->guessExtension();
+                    $this->extracted($uploadedFile, $fileName);
+
+                    // Удаление старых версий изображения
+                    $this->deleteImageFiles($image->getFilename());
+
+                    $image->setFilename($fileName);
+                }
+            }
+
+            // 2. Обновление простых полей
+            if (isset($data['description'])) {
+                $image->setDescription($data['description']);
+            }
+
+            if (isset($data['isFeatured'])) {
+                $image->setIsFeatured(filter_var($data['isFeatured'], FILTER_VALIDATE_BOOLEAN));
+            }
+
+            // 3. Обработка связей
+            if (!empty($data['parentId'])) {
+                $parent = $this->imageRepository->find($data['parentId']);
+                if ($parent) {
+                    $image->setParentId($parent);
+                }
+            }
+
+            // 4. Обработка видео
+            if (!empty($data['videos'])) {
+                $this->processVideos($image, $data['videos']);
+            }
+
+            $this->imageRepository->save($image, true);
+            return $this->json($this->entityToDto($image));
+
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
     #[Route('/{id}', name: 'api_admin_images_delete', methods: ['DELETE'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Delete(
@@ -279,5 +425,66 @@ class ImageCrudController extends AbstractController
                 $fs->remove($path);
             }
         }
+    }
+
+    /**
+     * @param mixed $uploadedFile
+     * @param string $fileName
+     * @return void
+     */
+    public function extracted(mixed $uploadedFile, string $fileName): void
+    {
+        $tempDir = $this->getParameter('project_temp_dir');
+
+        $fs = new Filesystem();
+        $fs->mkdir($tempDir, 0755);
+
+        $tempPath = $uploadedFile->move($tempDir, $fileName);
+        $imageInfo = getimagesize($tempPath);
+        $width = $imageInfo[0];
+
+        // Генерация 3 размеров
+        $this->generateImageVersions($tempPath, $fileName, $width);
+        $fs->remove($tempPath);
+    }
+
+    private function processVideos(Image $image, $videosData): void
+    {
+        if (is_string($videosData)) {
+            $videosData = json_decode($videosData, true);
+        }
+
+        foreach ($videosData as $videoData) {
+            $video = isset($videoData['id'])
+                ? $this->videoRepository->find($videoData['id'])
+                : new Video();
+
+            $video->setTitle($videoData['title'] ?? '');
+            $video->setYoutubeUrl($videoData['youtube_url'] ?? '');
+            $video->setImage($image->getParentId() ?: $image);
+
+            $this->videoRepository->save($video, false);
+        }
+    }
+    private function entityToDto(Image $image): ImageOutputDto
+    {
+        $dto = new ImageOutputDto(
+            $image->getId(),
+            $image->getFilename(),
+            $image->getDescription(),
+            $image->isFeatured(),
+            $image->getParentId()?->getId()
+        );
+
+        // Добавляем связанные видео
+        foreach ($image->getVideos() as $video) {
+            $dto->videos[] = new VideoDto(
+                $video->getId(),
+                $video->getTitle(),
+                $video->getYoutubeUrl()
+            );
+        }
+
+        return $dto;
     }
 }

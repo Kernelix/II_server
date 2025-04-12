@@ -19,6 +19,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    entrypoint: ["sh", "-c", "php bin/console doctrine:database:create --if-not-exists && php-fpm"]
 
   nginx:
     image: nginx:alpine

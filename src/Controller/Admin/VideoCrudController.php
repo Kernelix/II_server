@@ -8,6 +8,7 @@ use App\Entity\Video;
 use App\Repository\VideoRepository;
 use App\Repository\ImageRepository;
 use OpenApi\Attributes as OA;
+use Psr\Cache\InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use RedisException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -18,14 +19,13 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/api/admin/videos')]
-#[OA\Tag(name: 'Админка: Видео', description: 'Управление видеозаписями в админ-панели')]
+#[OA\Tag(name: 'Admin Video', description: 'Управление видеозаписями в админ-панели')]
 #[IsGranted('ROLE_ADMIN')]
 class VideoCrudController extends AbstractController
 {
     public function __construct(
         private readonly VideoRepository $videoRepository,
-        private readonly ImageRepository $imageRepository,
-        private readonly LoggerInterface $logger
+        private readonly ImageRepository $imageRepository
     ) {
     }
 
@@ -68,29 +68,50 @@ class VideoCrudController extends AbstractController
         description: 'Создает новую видеозапись. Все поля необязательные, но рекомендуется указать youtube_url.',
         summary: 'Добавить новое видео',
         requestBody: new OA\RequestBody(
-            description: 'Данные видео',
-            content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(
-                        property: 'title',
-                        type: 'string',
-                        example: 'Обзор продукта',
-                        nullable: true
-                    ),
-                    new OA\Property(
-                        property: 'youtube_url',
-                        type: 'string',
-                        example: 'https://youtu.be/dQw4w9WgXcQ',
-                        nullable: true
-                    ),
-                    new OA\Property(
-                        property: 'image_id',
-                        type: 'integer',
-                        example: 123,
-                        nullable: true
+            description: 'Данные видео (форма или JSON)',
+            content: [
+                new OA\MediaType(
+                    mediaType: 'multipart/form-data',
+                    schema: new OA\Schema(
+                        properties: [
+                            new OA\Property(
+                                property: 'title',
+                                type: 'string',
+                                example: 'Обзор продукта',
+                                nullable: true
+                            ),
+                            new OA\Property(
+                                property: 'youtube_url',
+                                type: 'string',
+                                example: 'https://youtu.be/dQw4w9WgXcQ',
+                                nullable: true
+                            ),
+                            new OA\Property(property: 'image_id', type: 'integer', example: 123, nullable: true)
+                        ]
                     )
-                ]
-            )
+                ),
+                new OA\MediaType(
+                    mediaType: 'application/json',
+                    schema: new OA\Schema(
+                        properties: [
+                            new OA\Property(
+                                property: 'title',
+                                type: 'string',
+                                example: 'Обзор продукта',
+                                nullable: true
+                            ),
+                            new OA\Property(
+                                property: 'youtube_url',
+                                type: 'string',
+                                example: 'https://youtu.be/dQw4w9WgXcQ',
+                                nullable: true
+                            ),
+                            new OA\Property(property: 'image_id', type: 'integer', example: 123, nullable: true),
+                            new OA\Property(property: 'description', type: 'string', nullable: true),
+                        ]
+                    )
+                )
+            ]
         ),
         responses: [
             new OA\Response(
@@ -120,7 +141,7 @@ class VideoCrudController extends AbstractController
     )]
     public function create(Request $request): JsonResponse
     {
-        $data = json_decode($request->getContent(), true);
+        $data = $request->request->all(); // Получаем данные формы
         $video = new Video();
 
         try {
@@ -147,15 +168,10 @@ class VideoCrudController extends AbstractController
                 $this->entityToDto($video),
                 Response::HTTP_CREATED
             );
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (RedisException $e) {
-            // Логируем ошибку Redis, но продолжаем работу
-            $this->logger->error('Redis error while clearing cache', ['exception' => $e]);
-            return $this->json(
-                $this->entityToDto($video),
-                Response::HTTP_CREATED
-            );
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -251,49 +267,66 @@ class VideoCrudController extends AbstractController
     {
         $video = $this->videoRepository->find($id);
         if (!$video) {
-            return $this->json(['error' => 'Видео не найдено'], Response::HTTP_NOT_FOUND);
+            return $this->json(['error' => 'Video not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $data = json_decode($request->getContent(), true);
+        // Парсим данные как в ImageCrudController
+        $data = [];
+        $content = $request->getContent();
+        $boundary = substr($content, 0, strpos($content, "\r\n"));
+
+        if ($boundary) {
+            $parts = array_slice(explode($boundary, $content), 1);
+
+            foreach ($parts as $part) {
+                if ($part === "--\r\n") {
+                    break;
+                }
+
+                $part = ltrim($part, "\r\n");
+                list($rawHeaders, $body) = explode("\r\n\r\n", $part, 2);
+
+                $headers = [];
+                foreach (explode("\r\n", $rawHeaders) as $header) {
+                    list($name, $value) = explode(':', $header, 2);
+                    $headers[strtolower(trim($name))] = trim($value);
+                }
+
+                if (isset($headers['content-disposition'])) {
+                    preg_match('/name="([^"]+)"/', $headers['content-disposition'], $matches);
+                    $fieldName = $matches[1] ?? null;
+
+                    if ($fieldName && !empty($body)) {
+                        $data[$fieldName] = substr($body, 0, -2); // Убираем последние \r\n
+                    }
+                }
+            }
+        }
 
         try {
-            if (array_key_exists('title', $data)) {
-                $video->setTitle($data['title'] ?? null);
+            // Обновление полей
+            if (isset($data['title'])) {
+                $video->setTitle($data['title']);
             }
 
-            if (array_key_exists('youtube_url', $data)) {
-                $video->setYoutubeUrl(
-                    $data['youtube_url'] ? $this->normalizeYoutubeUrl($data['youtube_url']) : null
-                );
+            if (isset($data['youtube_url'])) {
+                $video->setYoutubeUrl($this->normalizeYoutubeUrl($data['youtube_url']));
             }
 
-            if (array_key_exists('image_id', $data)) {
-                if ($data['image_id'] === null) {
-                    $video->setImage(null);
-                } else {
-                    $image = $this->imageRepository->find($data['image_id']);
-                    if (!$image) {
-                        return $this->json(['error' => 'Изображение не найдено'], Response::HTTP_NOT_FOUND);
-                    }
-                    $video->setImage($image);
-                }
+            if (isset($data['image_id'])) {
+                $this->handleImageAssociation($video, $data['image_id']);
             }
 
             $this->videoRepository->save($video, true);
-            $this->videoRepository->clearVideoCache($video->getId());
-
             return $this->json($this->entityToDto($video));
         } catch (\InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (RedisException $e) {
-            $this->logger->error('Redis error while clearing cache', ['exception' => $e]);
-            return $this->json($this->entityToDto($video));
+        } catch (\Exception $e) {
+            return $this->json(['error' => 'Server error'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
-    /**
-     * @throws RedisException
-     */
+
     #[Route('/{id}', name: 'api_admin_videos_delete', methods: ['DELETE'])]
     #[OA\Delete(
         summary: 'Удалить видео',
@@ -384,5 +417,20 @@ class VideoCrudController extends AbstractController
         }
 
         return $dto;
+    }
+
+
+    private function handleImageAssociation(Video $video, $imageId): void
+    {
+        if ($imageId === null || $imageId === '') {
+            $video->setImage(null);
+            return;
+        }
+
+        $image = $this->imageRepository->find((int)$imageId);
+        if (!$image) {
+            throw new \InvalidArgumentException('Image not found');
+        }
+        $video->setImage($image);
     }
 }

@@ -4,7 +4,7 @@
    docker exec -it ii_server-php-1 /bin/sh
    Внутри контейнера выполнить:
    composer install
-   php bin/console doctrine:migrations:migrate
+   php bin/console doctrine:migrations:migrate -n
    php bin/console doctrine:fixtures:load --append
 
 <hr>

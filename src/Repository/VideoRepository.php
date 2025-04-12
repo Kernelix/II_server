@@ -88,7 +88,7 @@ class VideoRepository extends ServiceEntityRepository
         $cache = $this->getEntityManager()->getConfiguration()->getResultCache();
 
         if (!$cache instanceof \Redis && !$cache instanceof \Predis\Client) {
-            throw new \RuntimeException('Cache adapter is not Redis');
+            return;
         }
 
         if ($videoId === null) {

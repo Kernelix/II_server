@@ -16,15 +16,18 @@ class UserFixtures extends Fixture
 
     public function load(ObjectManager $manager): void
     {
-        $user = new User();
-        $user->setEmail('admin@example.com');
-        $user->setRoles(['ROLE_ADMIN']);
+        $existingUser = $manager->getRepository(User::class)->findOneBy(['email' => 'admin@example.com']);
+        if (!$existingUser) {
+            $user = new User();
+            $user->setEmail('admin@example.com');
+            $user->setRoles(['ROLE_ADMIN']);
 
-        // Хеширование пароля
-        $hashedPassword = $this->passwordHasher->hashPassword($user, '12345');
-        $user->setPassword($hashedPassword);
+            // Хеширование пароля
+            $hashedPassword = $this->passwordHasher->hashPassword($user, '12345');
+            $user->setPassword($hashedPassword);
 
-        $manager->persist($user);
-        $manager->flush();
+            $manager->persist($user);
+            $manager->flush();
+        }
     }
 }

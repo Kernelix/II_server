@@ -33,4 +33,14 @@ RUN composer global require friendsofphp/php-cs-fixer squizlabs/php_codesniffer 
 
 RUN git config --global --add safe.directory /var/www
 
+RUN apt-get update && apt-get install -y \
+    libwebp-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    libfreetype6-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j$(nproc) gd \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /var/www
