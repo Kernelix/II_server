@@ -31,4 +31,6 @@ RUN composer global require friendsofphp/php-cs-fixer squizlabs/php_codesniffer 
     && ln -s /root/.composer/vendor/bin/phpcs /usr/local/bin/phpcs \
     && ln -s /root/.composer/vendor/bin/phpcbf /usr/local/bin/phpcbf
 
+RUN git config --global --add safe.directory /var/www
+
 WORKDIR /var/www
