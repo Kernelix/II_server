@@ -7,9 +7,9 @@ use App\Dto\Gallery\GalleryImageDto;
 use App\Entity\Video;
 use App\Repository\VideoRepository;
 use App\Repository\ImageRepository;
+use App\Service\MultipartRequestParser;
 use OpenApi\Attributes as OA;
 use Psr\Cache\InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 use RedisException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,7 +25,8 @@ class VideoCrudController extends AbstractController
 {
     public function __construct(
         private readonly VideoRepository $videoRepository,
-        private readonly ImageRepository $imageRepository
+        private readonly ImageRepository $imageRepository,
+        private readonly MultipartRequestParser $multipartParser
     ) {
     }
 
@@ -220,12 +221,16 @@ class VideoCrudController extends AbstractController
         summary: 'Обновить видео',
         requestBody: new OA\RequestBody(
             description: 'Данные для обновления',
-            content: new OA\JsonContent(
-                properties: [
+            content: new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    properties: [
                     new OA\Property(property: 'title', type: 'string', nullable: true),
                     new OA\Property(property: 'youtube_url', type: 'string', nullable: true),
                     new OA\Property(property: 'image_id', type: 'integer', nullable: true)
-                ]
+                    ],
+                    type: 'object'
+                )
             )
         ),
         parameters: [
@@ -270,38 +275,8 @@ class VideoCrudController extends AbstractController
             return $this->json(['error' => 'Video not found'], Response::HTTP_NOT_FOUND);
         }
 
-        // Парсим данные как в ImageCrudController
-        $data = [];
-        $content = $request->getContent();
-        $boundary = substr($content, 0, strpos($content, "\r\n"));
-
-        if ($boundary) {
-            $parts = array_slice(explode($boundary, $content), 1);
-
-            foreach ($parts as $part) {
-                if ($part === "--\r\n") {
-                    break;
-                }
-
-                $part = ltrim($part, "\r\n");
-                list($rawHeaders, $body) = explode("\r\n\r\n", $part, 2);
-
-                $headers = [];
-                foreach (explode("\r\n", $rawHeaders) as $header) {
-                    list($name, $value) = explode(':', $header, 2);
-                    $headers[strtolower(trim($name))] = trim($value);
-                }
-
-                if (isset($headers['content-disposition'])) {
-                    preg_match('/name="([^"]+)"/', $headers['content-disposition'], $matches);
-                    $fieldName = $matches[1] ?? null;
-
-                    if ($fieldName && !empty($body)) {
-                        $data[$fieldName] = substr($body, 0, -2); // Убираем последние \r\n
-                    }
-                }
-            }
-        }
+        $parsedData = $this->multipartParser->parse($request);
+        $data = $parsedData['data'];
 
         try {
             // Обновление полей
@@ -327,6 +302,9 @@ class VideoCrudController extends AbstractController
     }
 
 
+    /**
+     * @throws RedisException
+     */
     #[Route('/{id}', name: 'api_admin_videos_delete', methods: ['DELETE'])]
     #[OA\Delete(
         summary: 'Удалить видео',
@@ -406,7 +384,7 @@ class VideoCrudController extends AbstractController
             $imageDto = new GalleryImageDto();
             $imageDto->id = $video->getImage()->getId();
             $imageDto->filename = $video->getImage()->getFilename();
-            $imageDto->description = null; // Можно добавить, если есть описание
+            $imageDto->description = $video->getImage()->getDescription();
             $imageDto->links = [
                 'self' => $this->generateUrl('api_admin_images_show', [
                     'id' => $video->getImage()->getId()

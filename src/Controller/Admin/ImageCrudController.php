@@ -2,6 +2,7 @@
 
 namespace App\Controller\Admin;
 
+use App\Dto\Gallery\GalleryImageDto;
 use App\Dto\Image\ImageOutputDto;
 use App\Dto\Video\VideoDto;
 use App\Entity\Image;
@@ -9,10 +10,10 @@ use App\Entity\Video;
 use App\Repository\ImageRepository;
 use App\Repository\VideoRepository;
 use App\Service\ImageRender;
+use App\Service\MultipartRequestParser;
 use OpenApi\Attributes as OA;
 use Psr\Cache\InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,7 +27,8 @@ class ImageCrudController extends AbstractController
 {
     public function __construct(
         private readonly ImageRepository $imageRepository,
-        private readonly VideoRepository $videoRepository
+        private readonly VideoRepository $videoRepository,
+        private readonly MultipartRequestParser $multipartParser
     ) {
     }
 
@@ -138,12 +140,7 @@ class ImageCrudController extends AbstractController
         return $this->json($image);
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
-    /**
-     * @throws InvalidArgumentException
-     */
+
     #[Route('/{id}', name: 'api_admin_images_update', methods: ['PUT', 'PATCH'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Put(
@@ -220,83 +217,17 @@ class ImageCrudController extends AbstractController
             return $this->json(['error' => 'Image not found'], Response::HTTP_NOT_FOUND);
         }
 
-        // Инициализация данных
-        $data = [];
-        $uploadedFile = null;
-
-        // Обработка multipart/form-data для PUT/PATCH
-        if (str_contains($request->headers->get('Content-Type'), 'multipart/form-data')) {
-            // Парсинг multipart данных вручную
-            $content = $request->getContent();
-            $boundary = substr($content, 0, strpos($content, "\r\n"));
-
-            if ($boundary) {
-                // Разбиваем на части
-                $parts = array_slice(explode($boundary, $content), 1);
-
-                foreach ($parts as $part) {
-                    if ($part == "--\r\n") {
-                        break; // Конец данных
-                    }
-
-                    // Получаем headers и content
-                    $part = ltrim($part, "\r\n");
-                    list($rawHeaders, $body) = explode("\r\n\r\n", $part, 2);
-
-                    // Парсим headers
-                    $headers = [];
-                    foreach (explode("\r\n", $rawHeaders) as $header) {
-                        list($name, $value) = explode(':', $header, 2);
-                        $headers[strtolower(trim($name))] = trim($value);
-                    }
-
-                    // Обработка файла
-                    if (isset($headers['content-disposition'])) {
-                        preg_match('/name="([^"]+)"/', $headers['content-disposition'], $matches);
-                        $fieldName = $matches[1] ?? null;
-
-                        if ($fieldName === 'image' && isset($headers['content-type'])) {
-                            // Создаем временный файл
-                            $tempFile = tmpfile();
-                            fwrite($tempFile, $body);
-                            $tempFilePath = stream_get_meta_data($tempFile)['uri'];
-
-                            $uploadedFile = new UploadedFile(
-                                $tempFilePath,
-                                $matches['filename'] ?? uniqid(),
-                                $headers['content-type'],
-                                null,
-                                true
-                            );
-                        } else {
-                            // Обычные поля формы
-                            $data[$fieldName] = substr($body, 0, -2); // Удаляем \r\n в конце
-                        }
-                    }
-                }
-            }
-        } else {
-            $data = json_decode($request->getContent(), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return $this->json(['error' => 'Invalid JSON data'], Response::HTTP_BAD_REQUEST);
-            }
-        }
+        $parsedData = $this->multipartParser->parse($request);
 
         try {
-            if ($request->files->has('image')) {
-                $uploadedFile = $request->files->get('image');
-                if ($uploadedFile instanceof UploadedFile) {
-                    // Генерация уникального имени файла
-                    $fileName = uniqid() . '.' . $uploadedFile->guessExtension();
-                    $this->extracted($uploadedFile, $fileName);
-
-                    // Удаление старых версий изображения
-                    $this->deleteImageFiles($image->getFilename());
-
-                    $image->setFilename($fileName);
-                }
+            if ($parsedData['file']) {
+                $fileName = uniqid() . '.' . $parsedData['file']->guessExtension();
+                $this->extracted($parsedData['file'], $fileName);
+                $this->deleteImageFiles($image->getFilename());
+                $image->setFilename($fileName);
             }
 
+            $data = $parsedData['data'];
             // 2. Обновление простых полей
             if (isset($data['description'])) {
                 $image->setDescription($data['description']);
@@ -321,7 +252,6 @@ class ImageCrudController extends AbstractController
 
             $this->imageRepository->save($image, true);
             return $this->json($this->entityToDto($image));
-
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
@@ -476,14 +406,68 @@ class ImageCrudController extends AbstractController
             $image->getParentId()?->getId()
         );
 
-        // Добавляем связанные видео
-        foreach ($image->getVideos() as $video) {
-            $dto->videos[] = new VideoDto(
-                $video->getId(),
-                $video->getTitle(),
-                $video->getYoutubeUrl()
-            );
+        if (!$image->getVideos()->isEmpty()) {
+            foreach ($image->getVideos() as $video) {
+                $videoDto = new VideoDto();
+                $videoDto->id = $video->getId();
+                $videoDto->title = $video->getTitle();
+                $videoDto->youtubeUrl = $video->getYoutubeUrl();
+                $videoDto->imageId = $video->getImage()?->getId();
+
+                // Если нужно добавить изображение, используем существующий GalleryImageDto
+                if ($video->getImage()) {
+                    $videoDto->image = $this->convertToGalleryImageDto($video->getImage());
+                }
+
+                $dto->videos[] = $videoDto;
+            }
         }
+
+        return $dto;
+    }
+
+    #[Route('/{id}/metadata', name: 'api_admin_images_update_metadata', methods: ['PATCH'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function updateMetadata(Request $request, int $id): JsonResponse
+    {
+        $image = $this->imageRepository->find($id);
+        if (!$image) {
+            return $this->json(['error' => 'Image not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $parsedData = $this->multipartParser->parse($request);
+        $data = $parsedData['data'];
+
+        try {
+            // Обновление полей
+            if (array_key_exists('description', $data)) {
+                $image->setDescription($data['description']);
+            }
+
+
+            $image->setIsFeatured(true);
+
+
+            if (array_key_exists('isPublished', $data)) {
+                $image->setIsPublished(filter_var($data['isPublished'], FILTER_VALIDATE_BOOLEAN));
+            }
+
+            $this->imageRepository->save($image, true);
+
+            return $this->json($this->entityToDto($image));
+        } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+    }
+    private function convertToGalleryImageDto(Image $image): GalleryImageDto
+    {
+        $dto = new GalleryImageDto();
+        $dto->id = $image->getId();
+        $dto->filename = $image->getFilename();
+        $dto->description = $image->getDescription();
+        $dto->links = [
+            'self' => $this->generateUrl('api_admin_images_show', ['id' => $image->getId()])
+        ];
 
         return $dto;
     }

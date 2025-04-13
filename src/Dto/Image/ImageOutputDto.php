@@ -11,8 +11,12 @@ class ImageOutputDto
     public ?string $description;
     public bool $isFeatured;
     public ?int $parentId;
-    /** @var VideoDto[] */
+
+    /**
+     * @var VideoDto[]
+     */
     public array $videos = [];
+
     public function __construct(
         int $id,
         ?string $filename,

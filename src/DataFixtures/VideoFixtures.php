@@ -1,15 +1,22 @@
 <?php
+
 namespace App\DataFixtures;
 
 use App\Entity\Image;
 use App\Entity\Video;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Exception\ORMException;
 use Doctrine\Persistence\ObjectManager;
 use Faker\Factory;
 
 class VideoFixtures extends Fixture
 {
-    private const POPULAR_VIDEO_IDS = [
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager
+    ) {
+    }
+    private const array POPULAR_VIDEO_IDS = [
         'Xqf4o5Kvxqs', // Пример видео 1
         'dQw4w9WgXcQ', // Rick Astley - Never Gonna Give You Up
         '9bZkp7q19f0', // PSY - GANGNAM STYLE
@@ -19,6 +26,9 @@ class VideoFixtures extends Fixture
         'OPf0YbXqDm0', // Mark Ronson - Uptown Funk
     ];
 
+    /**
+     * @throws ORMException
+     */
     public function load(ObjectManager $manager): void
     {
         $faker = Factory::create();
@@ -35,7 +45,7 @@ class VideoFixtures extends Fixture
 
             // Связь со случайным изображением (ID 1-1000)
             if ($faker->boolean(80)) { // 80% вероятность наличия изображения
-                $video->setImage($manager->getReference(Image::class, $faker->numberBetween(1, 1000)));
+                $video->setImage($this->entityManager->getReference(Image::class, $faker->numberBetween(1, 1000)));
             }
 
             $manager->persist($video);

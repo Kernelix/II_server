@@ -43,7 +43,7 @@ class VideoDto
         property: "image",
         ref: "#/components/schemas/GalleryImage",
         type: "object",
-        nullable: true // Указываем ссылку на схему GalleryImage
+        nullable: true
     )]
     public ?GalleryImageDto $image = null;
 }
