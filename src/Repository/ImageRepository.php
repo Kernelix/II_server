@@ -2,10 +2,12 @@
 
 namespace App\Repository;
 
+use AllowDynamicProperties;
 use App\Entity\Image;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Psr\Cache\InvalidArgumentException;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 /**
  * @method Image|null find($id, $lockMode = null, $lockVersion = null)
@@ -15,9 +17,13 @@ use Psr\Cache\InvalidArgumentException;
  */
 class ImageRepository extends ServiceEntityRepository
 {
-    public function __construct(ManagerRegistry $registry)
-    {
+    private TagAwareCacheInterface $cache;
+    public function __construct(
+        ManagerRegistry $registry,
+        TagAwareCacheInterface $cache
+    ) {
         parent::__construct($registry, Image::class);
+        $this->cache = $cache;
     }
 
     public function save(Image $entity, bool $flush = false): void
@@ -116,8 +122,26 @@ class ImageRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+
     /**
-     * Очищает кэш изображений с возможностью фильтрации по типам.
+     * @param int|null $id ID изображения (null для сброса списка)
+     * @throws InvalidArgumentException
+     */
+    public function clearGalleryCache(?int $id = null): void
+    {
+        // Сброс кэша списка
+        $this->cache->delete('gallery_list_json');
+        $this->cache->delete('gallery_list_etag');
+        $this->cache->delete('gallery_all');
+        $this->clearImageCache();
+        if ($id !== null) {
+            $this->cache->delete("gallery_detail_{$id}");
+            $this->cache->delete("gallery_detail_{$id}_etag");
+            $this->clearImageCache([], $id);
+        }
+    }
+    /**
+     * Очищает кэш изображений редис с возможностью фильтрации по типам.
      *
      * @param array $types Очистить только указанные типы ['videos', 'parents', 'featured']
      * @throws InvalidArgumentException
@@ -126,20 +150,21 @@ class ImageRepository extends ServiceEntityRepository
     {
         $cache = $this->getEntityManager()->getConfiguration()->getResultCache();
         $keys = [
-            'videos' => 'images_with_videos',
-            'parents' => 'parent_images',
-            'full' => 'images_with_videos_and_parent',
-            'filtered_published' => 'filtered_images_published',
-            'filtered_unpublished' => 'filtered_images_unpublished',
-            'non_featured' => 'non_featured_parent_images',
-            'gallery' => 'gallery_list_query'
+            'gallery' => 'gallery_list_query_db',
+            'gallery_v2' => 'gallery_list_query',
+            'gallery_v4' => 'gallery_list_query',
         ];
 
         // Добавляем динамические ключи, если передан id
         if ($id !== null) {
-            $keys['child_images'] = 'child_images_' . $id;
-            $keys['specific_videos'] = 'videos_' . $id;
+            $keys['gallery_detail'] = 'gallery_detail_' . $id;
+            $keys['parent_image'] = "parent_image_" . $id;
+            $keys['child_images_'] = "child_images_" . $id;
+            $keys['videos_'] = "videos_" . $id;
         }
+
+        $this->cache->invalidateTags(["image_{$id}", "gallery_all"]);
+
 
         if (empty($types)) {
             $cache->deleteItems($keys); // Удаление нескольких ключей

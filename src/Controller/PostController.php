@@ -2,17 +2,18 @@
 
 namespace App\Controller;
 
-use App\Dto\Gallery\GalleryImageDto;
-use App\Entity\Image;
 use App\Repository\ImageRepository;
 use App\Repository\VideoRepository;
 use Assert\Assert;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use OpenApi\Attributes as OA;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 final class PostController extends AbstractController
 {
@@ -20,7 +21,8 @@ final class PostController extends AbstractController
 
     public function __construct(
         private readonly ImageRepository $imageRepository,
-        private readonly VideoRepository $videoRepository
+        private readonly VideoRepository $videoRepository,
+        private readonly CacheItemPoolInterface $cache
     ) {
     }
 
@@ -180,50 +182,27 @@ final class PostController extends AbstractController
     )]
     public function galleryList(Request $request): JsonResponse
     {
-        $query = $this->imageRepository
-            ->createQueryBuilder('i')
-            ->andWhere('i.parentId IS NULL')
-            ->andWhere('i.isPublished = :isPublished')
-            ->setParameter('isPublished', true)
-            ->orderBy('i.id', 'DESC')
-            ->getQuery();
-
-
-
-        // Генерируем уникальный ключ кэша
         $cacheKey = 'gallery_list_query';
 
-        // Включаем кэширование с проверкой доступности
-        try {
-            $query->enableResultCache(self::CACHE_TTL, $cacheKey);
-            $cacheStatus = 'enabled';
-        } catch (\Exception $e) {
-            $cacheStatus = 'disabled';
-        }
+        // Используем более эффективный метод get()
+        $data = $this->cache->get($cacheKey, function (CacheItem $item) {
+            $item->expiresAfter(self::CACHE_TTL);
 
-        $images = $query->getResult();
+            if ($this->cache instanceof TagAwareCacheInterface) {
+                $item->tag(['gallery_all']);
+            }
 
-        $data = [
-            'status' => 'success',
-            'data' => [
-                'images' => array_map([$this, 'prepareImageData'], $images)
-            ],
-            'meta' => [
-                'count' => count($images),
-                'cache' => [
-                    'key' => $cacheKey,
-                    'status' => $cacheStatus,
-                    'ttl' => self::CACHE_TTL
-                ]
-            ]
-        ];
+            return $this->generateGalleryData();
+        });
 
-        $etag = $this->generateEtag($data);
+        $etag = $this->cache->get(
+            'gallery_list_query_etag',
+            fn () => hash('xxh128', json_encode($data))
+        );
 
         if ($request->isMethodCacheable() && $request->headers->get('If-None-Match') === $etag) {
             return new JsonResponse(null, 304);
         }
-
 
         return $this->buildCachedResponse($data, $etag);
     }
@@ -425,74 +404,135 @@ final class PostController extends AbstractController
     )]
     public function galleryDetail(Request $request, int $id): JsonResponse
     {
-        $parentImage = $this->imageRepository->find($id);
-        Assert::that($parentImage)->notEmpty('Изображение не найдено');
+        // Ключи кэша
+        $cacheKey = "gallery_detail_{$id}";
+        $etagKey = "{$cacheKey}_etag";
 
-        // Кэшируем дочерние изображения
-        $childImages = $this->imageRepository->createQueryBuilder('c')
-            ->andWhere('c.parentId = :parentId')
-            ->setParameter('parentId', $parentImage)
-            ->getQuery()
-            ->enableResultCache(self::CACHE_TTL, 'child_images_' . $id)
-            ->getResult();
+        // Пытаемся получить данные из кэша
+        $cachedData = $this->cache->get($cacheKey, function (ItemInterface $item) use ($cacheKey, $etagKey, $id) {
+            $item->expiresAfter(self::CACHE_TTL);
 
-        // Кэшируем видео
-        $videos = $this->videoRepository->createQueryBuilder('v')
-            ->andWhere('v.image = :image')
-            ->setParameter('image', $parentImage)
-            ->getQuery()
-            ->enableResultCache(self::CACHE_TTL, 'videos_' . $id)
-            ->getResult();
+            $startTime = microtime(true);
 
-        $data = [
-            'status' => 'success',
-            'data' => [
-                'parentImage' => $this->prepareImageData($parentImage),
-                'childImages' => array_map([$this, 'prepareImageData'], $childImages),
-                'videos' => array_map(function ($video) {
-                    return [
-                        'id' => $video->getId(),
-                        'title' => $video->getTitle(),
-                        'youtubeUrl' => $video->getYoutubeUrl(),
-                        'links' => [
-                            'source' => $video->getYoutubeUrl()
-                        ]
-                    ];
-                }, $videos)
-            ],
-            'meta' => [
-                'cache' => [
-                    'child_images' => 'child_images_' . $id,
-                    'videos' => 'videos_' . $id
+            // Оптимизированный запрос для родительского изображения
+            $parentImage = $this->imageRepository->createQueryBuilder('i')
+                ->select('i.id', 'i.description', 'i.fileName')
+                ->where('i.id = :id')
+                ->setParameter('id', $id)
+                ->getQuery()
+                ->enableResultCache(self::CACHE_TTL, "parent_image_{$id}")
+                ->getOneOrNullResult();
+
+            Assert::that($parentImage)->notEmpty('Изображение не найдено');
+
+            // Параллельно получаем дочерние элементы и видео
+            $childImages = $this->imageRepository->createQueryBuilder('c')
+                ->select('c.id', 'c.description', 'c.fileName')
+                ->where('c.parentId = :parentId')
+                ->setParameter('parentId', $id)
+                ->getQuery()
+                ->enableResultCache(self::CACHE_TTL, "child_images_{$id}")
+                ->getArrayResult();
+
+            $videos = $this->videoRepository->createQueryBuilder('v')
+                ->select('v.id', 'v.title', 'v.youtubeUrl')
+                ->where('v.image = :imageId')
+                ->setParameter('imageId', $id)
+                ->getQuery()
+                ->enableResultCache(self::CACHE_TTL, "videos_{$id}")
+                ->getArrayResult();
+
+            $data = [
+                'status' => 'success',
+                'data' => [
+                    'parentImage' => $this->prepareImageData($parentImage),
+                    'childImages' => array_map([$this, 'prepareImageData'], $childImages),
+                    'videos' => array_map(fn ($v) => [
+                        'id' => $v['id'],
+                        'title' => $v['title'],
+                        'youtubeUrl' => $v['youtubeUrl'],
+                        'links' => ['source' => $v['youtubeUrl']]
+                    ], $videos)
+                ],
+                'meta' => [
+                    'query_time' => round(microtime(true) - $startTime, 4) . 's',
+                    'cache' => [
+                        'key' => $cacheKey,
+                        'ttl' => self::CACHE_TTL
+                    ]
                 ]
-            ]
-        ];
+            ];
 
-        $etag = $this->generateEtag($data);
+            // Сохраняем ETag отдельно
+            $this->cache->save(
+                $this->cache->getItem($etagKey)
+                    ->set(hash('xxh128', json_encode($data)))
+                    ->expiresAfter(self::CACHE_TTL)
+            );
+
+            return $data;
+        });
+
+        // Проверка ETag
+        $etag = $this->cache->get($etagKey, fn () => hash('xxh128', json_encode($cachedData)));
 
         if ($request->isMethodCacheable() && $request->headers->get('If-None-Match') === $etag) {
             return new JsonResponse(null, 304);
         }
 
-
-        return $this->buildCachedResponse($data, $etag);
+        return $this->buildCachedResponse($cachedData, $etag);
     }
 
-    /**
-     * @param Image $image
-     * @return GalleryImageDto
-     */
-    private function prepareImageData(Image $image): GalleryImageDto
+    private function prepareImageData(array $image): array
     {
-        $dto = new GalleryImageDto();
-        $dto->id = $image->getId();
-        $dto->description = $image->getDescription();
-        $dto->filename = $image->getFilename();
-        $dto->links = [
-            'self' => $this->generateUrl('api_gallery_detail', ['id' => $image->getId()])
+        return [
+            'id' => $image['id'],
+            'description' => $image['description'],
+            'filename' => $image['fileName'],
+            'links' => [
+                'self' => $this->generateUrl('api_gallery_detail', ['id' => $image['id']])
+            ]
         ];
+    }
 
-        return $dto;
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function generateGalleryData(): array
+    {
+        $query = $this->imageRepository
+            ->createQueryBuilder('i')
+            ->select('i.id', 'i.description', 'i.fileName')
+            ->andWhere('i.parentId IS NULL')
+            ->andWhere('i.isPublished = :isPublished')
+            ->setParameter('isPublished', true)
+            ->orderBy('i.id', 'DESC')
+            ->getQuery()
+            ->enableResultCache(self::CACHE_TTL, 'gallery_list_query_db');
+
+        $images = $query->getArrayResult();
+
+        return [
+            'status' => 'success',
+            'data' => [
+                'images' => array_map(fn (array $img) => [
+                    'id' => $img['id'],
+                    'description' => $img['description'],
+                    'filename' => $img['fileName'],
+                    'links' => [
+                        'self' => $this->generateUrl('api_gallery_detail', ['id' => $img['id']])
+                    ]
+                ], $images)
+            ],
+            'meta' => [
+                'count' => count($images),
+                'cache' => [
+                    'key' => 'gallery_list_query',
+                    'ttl' => self::CACHE_TTL
+                ]
+            ]
+        ];
     }
 
     /**

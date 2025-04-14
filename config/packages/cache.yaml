@@ -6,10 +6,12 @@ framework:
                 provider: '%env(REDIS_URL)%'
                 default_lifetime: 86400 # 24 часа
 
+
             doctrine.query_cache_pool:
                 adapter: cache.adapter.redis
                 provider: '%env(REDIS_URL)%'
                 default_lifetime: 3600 # 1 час
+
 
             doctrine.result_cache_pool:
                 adapter: cache.adapter.redis

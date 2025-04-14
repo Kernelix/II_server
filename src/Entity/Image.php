@@ -9,6 +9,12 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: ImageRepository::class)]
+#[ORM\Table(name: 'image')]
+#[ORM\Index(
+    name: "idx_image_published",
+    columns: ["parent_id", "is_published"],
+    options: ["where" => "parent_id IS NULL AND is_published = true"]
+)]
 class Image
 {
     #[ORM\Id]

@@ -20,7 +20,8 @@ final class Version20250312100202 extends AbstractMigration
     public function up(Schema $schema): void
     {
         // this up() migration is auto-generated, please modify it to your needs
-        $this->addSql('ALTER TABLE image ADD CONSTRAINT FK_C53D045F727ACA70 FOREIGN KEY (parent_id) REFERENCES image (id) ON DELETE SET NULL');
+        $this->addSql('ALTER TABLE image ADD CONSTRAINT FK_C53D045F727ACA70 FOREIGN KEY
+    (parent_id) REFERENCES image (id) ON DELETE SET NULL');
     }
 
     public function down(Schema $schema): void

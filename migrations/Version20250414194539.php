@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated Migration: Please modify to your needs!
  */
-final class Version20250312161902 extends AbstractMigration
+final class Version20250414194539 extends AbstractMigration
 {
     public function getDescription(): string
     {
@@ -19,12 +19,11 @@ final class Version20250312161902 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // this up() migration is auto-generated, please modify it to your needs
-        $this->addSql('ALTER TABLE image ADD is_published TINYINT(1) DEFAULT 0 NOT NULL');
+        $this->addSql('CREATE INDEX idx_image_published ON image (parent_id, is_published)');
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE image DROP is_published');
+        $this->addSql('DROP INDEX idx_image_published ON image');
     }
 }

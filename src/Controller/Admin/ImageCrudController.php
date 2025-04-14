@@ -21,6 +21,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Filesystem\Filesystem;
 
+
 #[Route('/api/admin/images')]
 #[OA\Tag(name: 'Admin Images', description: 'Управление изображениями в админке')]
 class ImageCrudController extends AbstractController
@@ -107,7 +108,7 @@ class ImageCrudController extends AbstractController
                 ->setIsFeatured($request->get('isFeatured', false));
 
             $this->imageRepository->save($image, true);
-            $this->imageRepository->clearImageCache([], $image->getId());
+            $this->imageRepository->clearGalleryCache($image->getId());
             return $this->json($image, Response::HTTP_CREATED);
         } catch (InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
@@ -251,8 +252,11 @@ class ImageCrudController extends AbstractController
             }
 
             $this->imageRepository->save($image, true);
+            $this->imageRepository->clearGalleryCache($id);
             return $this->json($this->entityToDto($image));
         } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
     }
@@ -279,7 +283,7 @@ class ImageCrudController extends AbstractController
 
         $this->deleteImageFiles($image->getFilename());
         $this->imageRepository->remove($image, true);
-        $this->imageRepository->clearImageCache([], $id);
+        $this->imageRepository->clearGalleryCache($id);
 
         return $this->json(null, 204);
     }
@@ -453,9 +457,12 @@ class ImageCrudController extends AbstractController
             }
 
             $this->imageRepository->save($image, true);
+            $this->imageRepository->clearGalleryCache($image->getId());
 
             return $this->json($this->entityToDto($image));
         } catch (\Exception $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
     }
