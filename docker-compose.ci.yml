@@ -7,6 +7,7 @@ services:
       APP_ENV: test
       REDIS_URL: redis://redis:6379
       APP_SECRET: testsecret
+      XDEBUG_MODE: "off"
     volumes:
       - .:/var/www
       - .git:/var/www/.git
@@ -15,11 +16,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    entrypoint: ["sh", "-c", "php-fpm"]
+
 
 
   mysql:
-    image: mysql:8.0
+    image: mysql:8.0.41
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: sentihell
@@ -28,7 +29,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD-SHELL", "mysqladmin ping -uroot -proot --silent" ]
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -proot"]
       interval: 5s
       timeout: 5s
       retries: 20
