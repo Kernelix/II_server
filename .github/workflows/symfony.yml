@@ -62,7 +62,7 @@ jobs:
 
       - name: "Wait for MySQL"
         run: |
-          docker-compose -f docker-compose.ci.yml exec -T mysql bash -c 'while ! mysqladmin ping -uroot --silent; do sleep 1; done'
+          docker compose -f docker-compose.ci.yml exec -T mysql bash -c 'while ! mysqladmin ping -uroot --silent; do sleep 1; done'
 
       - name: "Prepare database"
         run: |
@@ -73,33 +73,33 @@ jobs:
 
       - name: "Run tests"
         run: |
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'composer install'
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:database:create --if-not-exists --env=test'
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:schema:update --force --complete --env=test'
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console lint:container'
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/phpunit'
+          docker compose -f docker-compose.ci.yml exec -T php bash -c 'composer install'
+          docker compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:database:create --if-not-exists --env=test'
+          docker compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console doctrine:schema:update --force --complete --env=test'
+          docker compose -f docker-compose.ci.yml exec -T php bash -c 'php bin/console lint:container'
+          docker compose -f docker-compose.ci.yml exec -T php bash -c 'vendor/bin/phpunit'
           
       - name: "Run PHPStan"
         run: |
-          docker-compose -f docker-compose.ci.yml exec -T php bash -c '
+          docker compose -f docker-compose.ci.yml exec -T php bash -c '
           export REDIS_URL=redis://redis:6379
           export DATABASE_URL="mysql://root:root@mysql:3306/sentihell?serverVersion=8.0.41"
           vendor/bin/phpstan analyse --configuration=phpstan.neon'
 
       - name: Run PHP-CS-Fixer
-        run: docker-compose exec -T php php-cs-fixer fix --diff --verbose
+        run: docker compose exec -T php php-cs-fixer fix --diff --verbose
 
       - name: Apply fixes
         run: |
-                docker-compose exec -T php phpcbf --standard=PSR12 src/ || echo "PHPCBF made some fixes"
+                docker compose exec -T php phpcbf --standard=PSR12 src/ || echo "PHPCBF made some fixes"
 
       - name: Final check
-        run: docker-compose exec -T php phpcs --standard=PSR12 --colors -p src/
+        run: docker compose exec -T php phpcs --standard=PSR12 --colors -p src/
 
       - name: Commit and push
         if: success()
         run: |
-          docker-compose -f docker-compose.ci.yml exec -T php sh -c '
+          docker compose -f docker-compose.ci.yml exec -T php sh -c '
           git add . &&
           if ! git diff --cached --quiet; then
           git commit -m "Apply automatic code style fixes [skip ci]" &&
