@@ -69,8 +69,8 @@ jobs:
             docker compose -f docker-compose.ci.yml exec -T php \
             sh -c "composer install --no-interaction --optimize-autoloader"
 
-            - name: "Prepare database"
-              run: |
+      - name: "Prepare database"
+        run: |
                 docker compose -f docker-compose.ci.yml exec -T php \
                   php bin/console doctrine:database:create --if-not-exists --env=test
                 docker compose -f docker-compose.ci.yml exec -T php \
