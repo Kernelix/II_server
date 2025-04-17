@@ -184,7 +184,7 @@ final class PostController extends AbstractController
         $cacheKey = 'gallery_list_query';
 
         // Кешируем только данные (не весь ответ)
-        $data = $this->cache->get($cacheKey, function () use ($cacheKey, $startTime) {
+        $data = $this->cache->get($cacheKey, function () use ($cacheKey) {
             $sql = "SELECT id, description, file_name FROM image 
                 WHERE parent_id IS NULL AND is_published = 1
                 ORDER BY id DESC";
