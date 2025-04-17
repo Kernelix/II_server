@@ -15,12 +15,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    entrypoint: ["sh", "-c", "php bin/console doctrine:database:create --if-not-exists --env=test && php-fpm"]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    entrypoint: ["sh", "-c", "php-fpm"]
+
 
   mysql:
     image: mysql:8.0
@@ -32,10 +28,10 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-uroot", "-proot"]
+      test: [ "CMD-SHELL", "mysqladmin ping -uroot -proot --silent" ]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
 
   redis:
     image: redis:7-alpine
