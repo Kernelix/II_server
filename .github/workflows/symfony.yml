@@ -13,6 +13,11 @@ jobs:
       contents: write
 
     steps:
+      - name: "Wait for containers"
+        run: |
+            timeout 300 bash -c 'while ! docker-compose -f docker-compose.ci.yml ps | grep "php"; do sleep 2; done'
+            docker-compose -f docker-compose.ci.yml ps
+
       - name: "Checkout with full history"
         uses: actions/checkout@v3
         with:

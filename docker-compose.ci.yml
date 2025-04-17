@@ -13,14 +13,47 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "php bin/console doctrine:database:create --if-not-exists --env=test && php-fpm"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mysql:
-    image: mysql:8.0.41
+    image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: sentihell
+    volumes:
+      - mysql-data-ci:/var/lib/mysql
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-uroot", "-proot"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --bind 0.0.0.0 --port 6379
+    volumes:
+      - redis-data-ci:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+    networks:
+      - app-network
+
+volumes:
+  mysql-data-ci:
+  redis-data-ci:
+
+networks:
+  app-network:
+    driver: bridge

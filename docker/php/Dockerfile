@@ -59,4 +59,6 @@ RUN touch /tmp/xdebug.log && \
     chown www-data:app /tmp/xdebug.log && \
     chmod 664 /tmp/xdebug.log
 
+RUN git config --global --add safe.directory /var/www
+
 WORKDIR /var/www
