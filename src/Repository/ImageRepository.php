@@ -2,12 +2,11 @@
 
 namespace App\Repository;
 
-use AllowDynamicProperties;
 use App\Entity\Image;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Psr\Cache\InvalidArgumentException;
-use Symfony\Contracts\Cache\TagAwareCacheInterface;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * @method Image|null find($id, $lockMode = null, $lockVersion = null)
@@ -17,10 +16,10 @@ use Symfony\Contracts\Cache\TagAwareCacheInterface;
  */
 class ImageRepository extends ServiceEntityRepository
 {
-    private TagAwareCacheInterface $cache;
+    private CacheInterface $cache;
     public function __construct(
         ManagerRegistry $registry,
-        TagAwareCacheInterface $cache
+        CacheInterface $cache
     ) {
         parent::__construct($registry, Image::class);
         $this->cache = $cache;
@@ -130,50 +129,9 @@ class ImageRepository extends ServiceEntityRepository
     public function clearGalleryCache(?int $id = null): void
     {
         // Сброс кэша списка
-        $this->cache->delete('gallery_list_json');
-        $this->cache->delete('gallery_list_etag');
-        $this->cache->delete('gallery_all');
-        $this->clearImageCache();
+        $this->cache->delete('gallery_list_query');
         if ($id !== null) {
-            $this->cache->delete("gallery_detail_{$id}");
-            $this->cache->delete("gallery_detail_{$id}_etag");
-            $this->clearImageCache([], $id);
-        }
-    }
-    /**
-     * Очищает кэш изображений редис с возможностью фильтрации по типам.
-     *
-     * @param array $types Очистить только указанные типы ['videos', 'parents', 'featured']
-     * @throws InvalidArgumentException
-     */
-    public function clearImageCache(array $types = [], ?int $id = null): void
-    {
-        $cache = $this->getEntityManager()->getConfiguration()->getResultCache();
-        $keys = [
-            'gallery' => 'gallery_list_query_db',
-            'gallery_v2' => 'gallery_list_query',
-            'gallery_v4' => 'gallery_list_query',
-        ];
-
-        // Добавляем динамические ключи, если передан id
-        if ($id !== null) {
-            $keys['gallery_detail'] = 'gallery_detail_' . $id;
-            $keys['parent_image'] = "parent_image_" . $id;
-            $keys['child_images_'] = "child_images_" . $id;
-            $keys['videos_'] = "videos_" . $id;
-        }
-
-        $this->cache->invalidateTags(["image_{$id}", "gallery_all"]);
-
-
-        if (empty($types)) {
-            $cache->deleteItems($keys); // Удаление нескольких ключей
-        } else {
-            foreach ($types as $type) {
-                if (isset($keys[$type])) {
-                    $cache->deleteItem($keys[$type]); // Удаление одного ключа
-                }
-            }
+            $this->cache->delete('gallery_detail_' . $id);
         }
     }
 }

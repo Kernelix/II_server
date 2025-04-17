@@ -9,6 +9,7 @@ use App\Entity\Image;
 use App\Entity\Video;
 use App\Repository\ImageRepository;
 use App\Repository\VideoRepository;
+use App\Service\CachePurgerService;
 use App\Service\ImageRender;
 use App\Service\MultipartRequestParser;
 use OpenApi\Attributes as OA;
@@ -20,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Filesystem\Filesystem;
-
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 #[Route('/api/admin/images')]
 #[OA\Tag(name: 'Admin Images', description: 'Управление изображениями в админке')]
@@ -29,7 +30,8 @@ class ImageCrudController extends AbstractController
     public function __construct(
         private readonly ImageRepository $imageRepository,
         private readonly VideoRepository $videoRepository,
-        private readonly MultipartRequestParser $multipartParser
+        private readonly MultipartRequestParser $multipartParser,
+        private readonly CachePurgerService $cachePurger
     ) {
     }
 
@@ -52,11 +54,14 @@ class ImageCrudController extends AbstractController
     public function index(): JsonResponse
     {
         $images = $this->imageRepository->findParentImages();
-
+        $result = [];
+        foreach ($images as $image) {
+            $result[] = $this->entityToDto($image);
+        }
         return $this->json([
             'status' => 'success',
-            'data' => $images,
-            'count' => count($images)
+            'data' => $result,
+            'count' => count($result)
         ]);
     }
 
@@ -109,8 +114,9 @@ class ImageCrudController extends AbstractController
 
             $this->imageRepository->save($image, true);
             $this->imageRepository->clearGalleryCache($image->getId());
+            $this->cachePurger->purgeAll();
             return $this->json($image, Response::HTTP_CREATED);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException | TransportExceptionInterface $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -138,7 +144,7 @@ class ImageCrudController extends AbstractController
             return $this->json(['error' => 'Image not found'], 404);
         }
 
-        return $this->json($image);
+        return $this->json($this->entityToDto($image));
     }
 
 
@@ -253,10 +259,11 @@ class ImageCrudController extends AbstractController
 
             $this->imageRepository->save($image, true);
             $this->imageRepository->clearGalleryCache($id);
+            $this->cachePurger->purgeAll();
             return $this->json($this->entityToDto($image));
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException | TransportExceptionInterface $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
     }
@@ -282,12 +289,18 @@ class ImageCrudController extends AbstractController
         }
 
         $this->deleteImageFiles($image->getFilename());
+
         $this->imageRepository->remove($image, true);
         $this->imageRepository->clearGalleryCache($id);
+        $this->cachePurger->purgeAll();
 
-        return $this->json(null, 204);
+
+        return $this->json(['Удалено'], 204);
     }
 
+    /**
+     * @throws InvalidArgumentException
+     */
     #[Route('/{id}/toggle-publish', name: 'api_admin_images_toggle_publish', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Post(
@@ -308,11 +321,14 @@ class ImageCrudController extends AbstractController
         if (!$image) {
             return $this->json(['error' => 'Image not found'], 404);
         }
-
         $image->setIsPublished(!$image->isPublished());
         $this->imageRepository->save($image, true);
 
-        return $this->json($image);
+        $this->imageRepository->clearGalleryCache($image->getId());
+
+        $this->cachePurger->purgeAll();
+
+        return $this->json($this->entityToDto($image));
     }
 
     private function generateImageVersions(string $tempPath, string $fileName, int $originalWidth): void
@@ -368,10 +384,10 @@ class ImageCrudController extends AbstractController
      */
     public function extracted(mixed $uploadedFile, string $fileName): void
     {
-        $tempDir = $this->getParameter('project_temp_dir');
+        $tempDir = $_ENV['TEMP_DIR'] ?? $this->getParameter('kernel.project_dir') . '/var/tmp/';
 
         $fs = new Filesystem();
-        $fs->mkdir($tempDir, 0755);
+        $fs->mkdir($tempDir);
 
         $tempPath = $uploadedFile->move($tempDir, $fileName);
         $imageInfo = getimagesize($tempPath);
@@ -407,6 +423,7 @@ class ImageCrudController extends AbstractController
             $image->getFilename(),
             $image->getDescription(),
             $image->isFeatured(),
+            $image->isPublished(),
             $image->getParentId()?->getId()
         );
 
@@ -459,10 +476,12 @@ class ImageCrudController extends AbstractController
             $this->imageRepository->save($image, true);
             $this->imageRepository->clearGalleryCache($image->getId());
 
+            $this->cachePurger->purgeAll();
+
             return $this->json($this->entityToDto($image));
         } catch (\Exception $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException | TransportExceptionInterface $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
     }

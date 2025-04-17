@@ -31,4 +31,4 @@ security:
     access_control:
         - { path: ^/api/admin/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/admin/logout, roles: IS_AUTHENTICATED_FULLY }
-        - { path: ^/api/admin, roles: ROLE_ADMIN }
+        - { path: ^/api/admin, roles: ROLE_ADMIN, attributes: { "_cache": true } }

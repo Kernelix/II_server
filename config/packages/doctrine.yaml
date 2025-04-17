@@ -22,15 +22,15 @@ doctrine:
 
                 metadata_cache_driver:
                             type: pool
-                            pool: doctrine.metadata_cache_pool
+                            pool: cache.app
 
                 query_cache_driver:
                             type: pool
-                            pool: doctrine.query_cache_pool
+                            pool: cache.app
 
                 result_cache_driver:
                             type: pool
-                            pool: doctrine.result_cache_pool
+                            pool: cache.app
 
                 mappings:
                     App:

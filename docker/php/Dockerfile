@@ -43,4 +43,20 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+
+
+RUN set -x \
+    && deluser www-data 2>/dev/null || true \
+    && groupadd -g 1000 app \
+    && useradd -u 1000 -g app -s /bin/bash -m www-data
+
+# Назначаем права
+RUN mkdir -p /var/cache/nginx && \
+    chown -R www-data:app /var/cache/nginx && \
+    chmod -R 775 /var/cache/nginx
+
+RUN touch /tmp/xdebug.log && \
+    chown www-data:app /tmp/xdebug.log && \
+    chmod 664 /tmp/xdebug.log
+
 WORKDIR /var/www

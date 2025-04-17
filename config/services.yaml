@@ -5,10 +5,12 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     gallery_max_per_page: 50
-    project_temp_dir: '%kernel.project_dir%/backend/var/tmp/'
+    project_temp_dir: '%env(TEMP_DIR)%'
     images_s_dir: '%kernel.project_dir%/public/uploads/images/s/'
     images_m_dir: '%kernel.project_dir%/public/uploads/images/m/'
     images_l_dir: '%kernel.project_dir%/public/uploads/images/l/'
+    env(NGINX_BASE_URL): 'http://nginx'
+    nginx_cache_path: '/var/cache/nginx/client'
 services:
     App\EventSubscriber\AdminLogoutSubscriber:
         tags: [ kernel.event_subscriber ]
@@ -35,6 +37,8 @@ services:
             - '../src/DependencyInjection/'
             - '../src/Entity/'
             - '../src/Kernel.php'
-
+    App\Service\CachePurgerService:
+        arguments:
+                $nginxCachePath: '%nginx_cache_path%'
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

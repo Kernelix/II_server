@@ -2,6 +2,9 @@
 
 namespace App\Controller\Admin;
 
+use App\Dto\Image\ImageOutputDto;
+use App\Dto\Video\VideoDto;
+use App\Entity\Image;
 use App\Repository\ImageRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -41,19 +44,43 @@ class DashboardController extends AbstractController
         $featuredImages = $imageRepository->findBy(['isFeatured' => true]);
         $uploadedImages = $imageRepository->findNonFeaturedAndParentImages();
 
-        // Нормализация данных для API
-        $normalizeImage = function ($image) {
-            return [
-                'id' => $image->getId(),
-                'title' => $image->getTitle(),
-                'url' => $image->getUrl(),
-                'is_featured' => $image->isFeatured(),
-            ];
-        };
+        $resultFeaturedImages = [];
+        foreach ($featuredImages as $featuredImage) {
+            $resultFeaturedImages[] = $this->entityToDto($featuredImage);
+        }
+
+        $resultUploadedImage = [];
+        foreach ($uploadedImages as $uploadedImage) {
+            $resultUploadedImage[] = $this->entityToDto($uploadedImage);
+        }
 
         return $this->json([
-            'featured_images' => array_map($normalizeImage, $featuredImages),
-            'uploaded_images' => array_map($normalizeImage, $uploadedImages),
+            'featured_images' =>  $resultFeaturedImages,
+            'uploaded_images' => $resultUploadedImage,
         ]);
+    }
+    private function entityToDto(Image $image): ImageOutputDto
+    {
+        $dto = new ImageOutputDto(
+            $image->getId(),
+            $image->getFilename(),
+            $image->getDescription(),
+            $image->isFeatured(),
+            $image->isPublished(),
+            $image->getParentId()?->getId()
+        );
+
+        if (!$image->getVideos()->isEmpty()) {
+            foreach ($image->getVideos() as $video) {
+                $videoDto = new VideoDto();
+                $videoDto->id = $video->getId();
+                $videoDto->title = $video->getTitle();
+                $videoDto->youtubeUrl = $video->getYoutubeUrl();
+                $videoDto->imageId = $video->getImage()?->getId();
+                $dto->videos[] = $videoDto;
+            }
+        }
+
+        return $dto;
     }
 }

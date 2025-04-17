@@ -10,6 +10,7 @@ class ImageOutputDto
     public ?string $filename;
     public ?string $description;
     public bool $isFeatured;
+    public bool $isPublished;
     public ?int $parentId;
 
     /**
@@ -17,17 +18,20 @@ class ImageOutputDto
      */
     public array $videos = [];
 
+
     public function __construct(
         int $id,
         ?string $filename,
         ?string $description,
         bool $isFeatured,
+        bool $isPublished,
         ?int $parentId = null
     ) {
         $this->id = $id;
         $this->filename = $filename;
         $this->description = $description;
         $this->isFeatured = $isFeatured;
+        $this->isPublished = $isPublished;
         $this->parentId = $parentId;
     }
 }

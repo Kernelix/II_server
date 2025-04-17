@@ -7,6 +7,7 @@ use App\Dto\Gallery\GalleryImageDto;
 use App\Entity\Video;
 use App\Repository\VideoRepository;
 use App\Repository\ImageRepository;
+use App\Service\CachePurgerService;
 use App\Service\MultipartRequestParser;
 use OpenApi\Attributes as OA;
 use Psr\Cache\InvalidArgumentException;
@@ -26,7 +27,8 @@ class VideoCrudController extends AbstractController
     public function __construct(
         private readonly VideoRepository $videoRepository,
         private readonly ImageRepository $imageRepository,
-        private readonly MultipartRequestParser $multipartParser
+        private readonly MultipartRequestParser $multipartParser,
+        private readonly CachePurgerService $cachePurger
     ) {
     }
 
@@ -163,7 +165,8 @@ class VideoCrudController extends AbstractController
             }
 
             $this->videoRepository->save($video, true);
-            $this->videoRepository->clearVideoCache($video->getId());
+            $this->imageRepository->clearGalleryCache($video->getImage()?->getId());
+            $this->cachePurger->purgeAll();
 
             return $this->json(
                 $this->entityToDto($video),
@@ -293,17 +296,22 @@ class VideoCrudController extends AbstractController
             }
 
             $this->videoRepository->save($video, true);
+            $this->imageRepository->clearGalleryCache($video->getImage()?->getId());
+            $this->cachePurger->purgeAll();
             return $this->json($this->entityToDto($video));
         } catch (\InvalidArgumentException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (\Exception $e) {
             return $this->json(['error' => 'Server error'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (InvalidArgumentException $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
     }
 
 
     /**
      * @throws RedisException
+     * @throws InvalidArgumentException
      */
     #[Route('/{id}', name: 'api_admin_videos_delete', methods: ['DELETE'])]
     #[OA\Delete(
@@ -342,6 +350,8 @@ class VideoCrudController extends AbstractController
 
         $this->videoRepository->remove($video, true);
         $this->videoRepository->clearVideoCache($video->getId());
+        $this->imageRepository->clearGalleryCache($video->getImage()?->getId());
+        $this->cachePurger->purgeAll();
         return $this->json(null, Response::HTTP_NO_CONTENT);
     }
 
