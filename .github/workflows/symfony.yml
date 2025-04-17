@@ -45,9 +45,9 @@ jobs:
 
       - name: Configure Git safely
         run: |
-          docker-compose -f docker-compose.ci.yml exec -T php git config --global --add safe.directory /var/www
-          docker-compose -f docker-compose.ci.yml exec -T php git config --global user.email "actions@github.com"
-          docker-compose -f docker-compose.ci.yml exec -T php git config --global user.name "GitHub Actions"
+          docker compose -f docker-compose.ci.yml exec -T php git config --global --add safe.directory /var/www
+          docker compose -f docker-compose.ci.yml exec -T php git config --global user.email "actions@github.com"
+          docker compose -f docker-compose.ci.yml exec -T php git config --global user.name "GitHub Actions"
 
       - name: "Wait for MySQL"
         run: |
