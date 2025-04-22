@@ -1,41 +1,94 @@
+#doctrine:
+#    dbal:
+#        url: '%env(resolve:DATABASE_URL)%'
+#        profiling_collect_backtrace: '%kernel.debug%'
+#        use_savepoints: true
+#        # Раскомментируйте для PostgreSQL:
+#        # server_version: '16'
+#        # Для MySQL/MariaDB:
+#        server_version: '8.0'
+#        logging: true
+#        profiling: true
+#
+#    orm:
+#        auto_generate_proxy_classes: '%kernel.debug%'
+#        enable_lazy_ghost_objects: true
+#        proxy_dir: '%kernel.build_dir%/doctrine/orm/Proxies'
+#
+#        entity_managers:
+#            default:
+#                naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+#                auto_mapping: true
+#
+#                metadata_cache_driver:
+#                            type: pool
+#                            pool: cache.app
+#
+#                query_cache_driver:
+#                            type: pool
+#                            pool: cache.app
+#
+#                result_cache_driver:
+#                            type: pool
+#                            pool: cache.app
+#
+#                mappings:
+#                    App:
+#                        type: attribute
+#                        dir: '%kernel.project_dir%/src/Entity'
+#                        prefix: 'App\Entity'
+#
 doctrine:
     dbal:
-        url: '%env(resolve:DATABASE_URL)%'
-        profiling_collect_backtrace: '%kernel.debug%'
-        use_savepoints: true
-        # Раскомментируйте для PostgreSQL:
-        # server_version: '16'
-        # Для MySQL/MariaDB:
-        server_version: '8.0'
-        logging: true
-        profiling: true
+     url: '%env(resolve:DATABASE_URL)%'
 
+    # IMPORTANT: You MUST configure your server version,
+    # either here or in the DATABASE_URL env var (see .env file)
+    #server_version: '16'
+
+     profiling_collect_backtrace: '%kernel.debug%'
+     use_savepoints: true
     orm:
-        auto_generate_proxy_classes: '%kernel.debug%'
+        auto_generate_proxy_classes: true
         enable_lazy_ghost_objects: true
-        proxy_dir: '%kernel.build_dir%/doctrine/orm/Proxies'
+        report_fields_where_declared: true
+        validate_xml_mapping: true
+        naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+        identity_generation_preferences:
+          Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity
+        auto_mapping: true
+        mappings:
+          App:
+            type: attribute
+            is_bundle: false
+            dir: '%kernel.project_dir%/src/Entity'
+            prefix: 'App\Entity'
+            alias: App
+        controller_resolver:
+          auto_mapping: false
 
-        entity_managers:
-            default:
-                naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
-                auto_mapping: true
+when@test:
+     doctrine:
+         dbal:
+          # "TEST_TOKEN" is typically set by ParaTest
+          dbname_suffix: '_test%env(default::TEST_TOKEN)%'
 
-                metadata_cache_driver:
-                            type: pool
-                            pool: cache.app
+when@prod:
+    doctrine:
+        orm:
+            auto_generate_proxy_classes: false
+            proxy_dir: '%kernel.build_dir%/doctrine/orm/Proxies'
+            query_cache_driver:
+              type: pool
+              pool: doctrine.system_cache_pool
+            result_cache_driver:
+              type: pool
+              pool: doctrine.result_cache_pool
 
-                query_cache_driver:
-                            type: pool
-                            pool: cache.app
-
-                result_cache_driver:
-                            type: pool
-                            pool: cache.app
-
-                mappings:
-                    App:
-                        type: attribute
-                        dir: '%kernel.project_dir%/src/Entity'
-                        prefix: 'App\Entity'
-
-
+framework:
+    cache:
+      pools:
+        doctrine.result_cache_pool:
+          adapter: cache.app
+        doctrine.system_cache_pool:
+          adapter: cache.system

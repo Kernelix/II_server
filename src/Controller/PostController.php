@@ -3,26 +3,24 @@
 namespace App\Controller;
 
 use Doctrine\DBAL\Connection;
-use Psr\Cache\InvalidArgumentException;
+use Doctrine\DBAL\Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use OpenApi\Attributes as OA;
-use Symfony\Contracts\Cache\CacheInterface;
 
 final class PostController extends AbstractController
 {
     private const int CACHE_TTL = 2629800; // 1 месяц в секундах
 
     public function __construct(
-        private readonly CacheInterface $cache,
         private readonly Connection $connection
     ) {
     }
 
     /**
-     * @throws InvalidArgumentException
+     * @throws Exception
      */
     #[Route('/api/gallery', name: 'api_gallery_list', methods: ['GET', 'HEAD'])]
     #[OA\Get(
@@ -106,16 +104,6 @@ final class PostController extends AbstractController
                                     property: 'cache',
                                     properties: [
                                         new OA\Property(
-                                            property: 'key',
-                                            type: 'string',
-                                            example: 'gallery_list_query'
-                                        ),
-                                        new OA\Property(
-                                            property: 'status',
-                                            type: 'string',
-                                            example: 'enabled'
-                                        ),
-                                        new OA\Property(
                                             property: 'ttl',
                                             type: 'integer',
                                             example: 2629800
@@ -181,45 +169,42 @@ final class PostController extends AbstractController
     public function galleryList(Request $request): JsonResponse
     {
         $startTime = microtime(true);
-        $cacheKey = 'gallery_list_query';
 
-        // Кешируем только данные (не весь ответ)
-        $data = $this->cache->get($cacheKey, function () use ($cacheKey) {
-            $sql = "SELECT id, description, file_name FROM image 
+
+
+        $sql = "SELECT id, description, file_name FROM image 
                 WHERE parent_id IS NULL AND is_published = 1
                 ORDER BY id DESC";
 
-            $images = $this->connection->fetchAllAssociative($sql);
+        $images = $this->connection->fetchAllAssociative($sql);
 
-            return [
-                'status' => 'success',
-                'data' => [
-                    'images' => array_map(function ($img) {
-                        return [
-                            'id' => $img['id'],
-                            'description' => $img['description'],
-                            'filename' => $img['file_name'],
-                            'links' => [
-                                'self' => $this->generateUrl('api_gallery_detail', ['id' => $img['id']])
-                            ]
-                        ];
-                    }, $images)
-                ],
-                'meta' => [
-                    'count' => count($images),
-                    'cache' => [
-                        'key' => $cacheKey,
-                        'ttl' => self::CACHE_TTL
-                    ]
+        $data = [
+           'status' => 'success',
+           'data' => [
+               'images' => array_map(function ($img) {
+                   return [
+                       'id' => $img['id'],
+                       'description' => $img['description'],
+                       'filename' => $img['file_name'],
+                       'links' => [
+                           'self' => $this->generateUrl('api_gallery_detail', ['id' => $img['id']])
+                       ]
+                   ];
+               }, $images)
+           ],
+           'meta' => [
+               'count' => count($images),
+               'cache' => [
+                   'ttl' => self::CACHE_TTL
+               ]
                 ]
             ];
-        });
 
         return $this->extracted($data, $startTime, $request);
     }
 
     /**
-     * @throws InvalidArgumentException
+     * @throws Exception
      */
     #[Route('/api/gallery/{id}', name: 'api_gallery_detail', methods: ['GET', 'HEAD'])]
     #[OA\Get(
@@ -419,32 +404,31 @@ final class PostController extends AbstractController
     public function galleryDetail(Request $request, int $id): JsonResponse
     {
         $startTime = microtime(true);
-        $cacheKey = "gallery_detail_{$id}";
 
-        $data = $this->cache->get($cacheKey, function () use ($cacheKey, $id) {
-            // Основное изображение
-            $parent = $this->connection->fetchAssociative(
-                "SELECT id, description, file_name FROM image WHERE id = ?",
-                [$id]
-            );
 
-            if (!$parent) {
-                throw $this->createNotFoundException('Изображение не найдено');
-            }
+        // Основное изображение
+        $parent = $this->connection->fetchAssociative(
+            "SELECT id, description, file_name FROM image WHERE id = ?",
+            [$id]
+        );
 
-            // Дочерние изображения
-            $children = $this->connection->fetchAllAssociative(
-                "SELECT id, description, file_name FROM image WHERE parent_id = ?",
-                [$id]
-            );
+        if (!$parent) {
+            throw $this->createNotFoundException('Изображение не найдено');
+        }
 
-            // Видео
-            $videos = $this->connection->fetchAllAssociative(
-                "SELECT id, title, youtube_url FROM video WHERE image_id = ?",
-                [$id]
-            );
+        // Дочерние изображения
+        $children = $this->connection->fetchAllAssociative(
+            "SELECT id, description, file_name FROM image WHERE parent_id = ?",
+            [$id]
+        );
 
-            return [
+        // Видео
+        $videos = $this->connection->fetchAllAssociative(
+            "SELECT id, title, youtube_url FROM video WHERE image_id = ?",
+            [$id]
+        );
+
+        $data =  [
                 'status' => 'success',
                 'data' => [
                     'parentImage' => [
@@ -478,12 +462,11 @@ final class PostController extends AbstractController
                 ],
                 'meta' => [
                     'cache' => [
-                        'key' => $cacheKey,
                         'ttl' => self::CACHE_TTL
                     ]
                 ]
             ];
-        });
+
 
         return $this->extracted($data, $startTime, $request);
     }

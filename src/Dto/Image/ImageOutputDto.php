@@ -18,6 +18,11 @@ class ImageOutputDto
      */
     public array $videos = [];
 
+    /**
+     * @var ImageOutputDto[]
+     */
+    public array $childrens = [];
+
 
     public function __construct(
         int $id,

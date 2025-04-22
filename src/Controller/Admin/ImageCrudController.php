@@ -2,36 +2,31 @@
 
 namespace App\Controller\Admin;
 
-use App\Dto\Gallery\GalleryImageDto;
-use App\Dto\Image\ImageOutputDto;
-use App\Dto\Video\VideoDto;
 use App\Entity\Image;
-use App\Entity\Video;
-use App\Repository\ImageRepository;
-use App\Repository\VideoRepository;
-use App\Service\CachePurgerService;
-use App\Service\ImageRender;
-use App\Service\MultipartRequestParser;
+use App\Repository\Interface\ImageRepositoryInterface;
+use App\Service\Interface\DtoMapperInterface;
+use App\Service\Interface\ErrorHandlerInterface;
+use App\Service\Interface\ImageManagerInterface;
+use App\Service\Interface\MultipartParserInterface;
 use OpenApi\Attributes as OA;
-use Psr\Cache\InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 #[Route('/api/admin/images')]
 #[OA\Tag(name: 'Admin Images', description: 'Управление изображениями в админке')]
 class ImageCrudController extends AbstractController
 {
     public function __construct(
-        private readonly ImageRepository $imageRepository,
-        private readonly VideoRepository $videoRepository,
-        private readonly MultipartRequestParser $multipartParser,
-        private readonly CachePurgerService $cachePurger
+        private readonly ImageRepositoryInterface $imageRepository,
+        private readonly DtoMapperInterface $dtoMapper,
+        private readonly ErrorHandlerInterface $errorService,
+        private readonly MultipartParserInterface $multipartParser,
+        private readonly ImageManagerInterface $imageManager,
     ) {
     }
 
@@ -56,7 +51,7 @@ class ImageCrudController extends AbstractController
         $images = $this->imageRepository->findParentImages();
         $result = [];
         foreach ($images as $image) {
-            $result[] = $this->entityToDto($image);
+            $result[] = $this->dtoMapper->convertImageToDto($image);
         }
         return $this->json([
             'status' => 'success',
@@ -96,30 +91,21 @@ class ImageCrudController extends AbstractController
     )]
     public function create(Request $request): JsonResponse
     {
-        $image = new Image();
-
-        // Обработка загрузки файла
-        $uploadedFile = $request->files->get('image');
-        if (!$uploadedFile) {
-            return $this->json(['error' => 'Image file is required'], 400);
-        }
-
         try {
-            $fileName = uniqid() . "."  . $uploadedFile->guessExtension();
-            $this->extracted($uploadedFile, $fileName);
+            $uploadedFile = $request->files->get('image');
+            if (!$uploadedFile) {
+                throw new \InvalidArgumentException('Image file is required');
+            }
 
-            $image->setFilename($fileName)
-                ->setDescription($request->get('description'))
-                ->setIsFeatured($request->get('isFeatured', false));
+            $image = $this->imageManager->createImage(
+                $uploadedFile,
+                $request->get('description'),
+                $request->get('isFeatured', false)
+            );
 
-            $this->imageRepository->save($image, true);
-            $this->imageRepository->clearGalleryCache($image->getId());
-            $this->cachePurger->purgeAll();
-            return $this->json($image, Response::HTTP_CREATED);
-        } catch (InvalidArgumentException | TransportExceptionInterface $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return $this->successResponse($image);
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->errorService->jsonError($e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -139,12 +125,8 @@ class ImageCrudController extends AbstractController
     )]
     public function show(int $id): JsonResponse
     {
-        $image = $this->imageRepository->find($id);
-        if (!$image) {
-            return $this->json(['error' => 'Image not found'], 404);
-        }
-
-        return $this->json($this->entityToDto($image));
+        $image = $this->getImageOrFail($id);
+        return $this->successResponse($image);
     }
 
 
@@ -219,58 +201,23 @@ class ImageCrudController extends AbstractController
     )]
     public function update(Request $request, int $id): JsonResponse
     {
-        $image = $this->imageRepository->find($id);
-        if (!$image) {
-            return $this->json(['error' => 'Image not found'], Response::HTTP_NOT_FOUND);
-        }
-
-        $parsedData = $this->multipartParser->parse($request);
-
         try {
-            if ($parsedData['file']) {
-                $fileName = uniqid() . '.' . $parsedData['file']->guessExtension();
-                $this->extracted($parsedData['file'], $fileName);
-                $this->deleteImageFiles($image->getFilename());
-                $image->setFilename($fileName);
-            }
+            $image = $this->getImageOrFail($id);
+            $parsedData = $this->multipartParser->parse($request);
 
-            $data = $parsedData['data'];
-            // 2. Обновление простых полей
-            if (isset($data['description'])) {
-                $image->setDescription($data['description']);
-            }
+            $this->imageManager->updateImage(
+                $image,
+                $parsedData['data'],
+                $parsedData['file']
+            );
 
-            if (isset($data['isFeatured'])) {
-                $image->setIsFeatured(filter_var($data['isFeatured'], FILTER_VALIDATE_BOOLEAN));
-            }
-
-            // 3. Обработка связей
-            if (!empty($data['parentId'])) {
-                $parent = $this->imageRepository->find($data['parentId']);
-                if ($parent) {
-                    $image->setParentId($parent);
-                }
-            }
-
-            // 4. Обработка видео
-            if (!empty($data['videos'])) {
-                $this->processVideos($image, $data['videos']);
-            }
-
-            $this->imageRepository->save($image, true);
-            $this->imageRepository->clearGalleryCache($id);
-            $this->cachePurger->purgeAll();
-            return $this->json($this->entityToDto($image));
+            return $this->successResponse($image);
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (InvalidArgumentException | TransportExceptionInterface $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return $this->errorService->jsonError($e);
         }
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
+
     #[Route('/{id}', name: 'api_admin_images_delete', methods: ['DELETE'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Delete(
@@ -283,24 +230,16 @@ class ImageCrudController extends AbstractController
     )]
     public function delete(int $id): JsonResponse
     {
-        $image = $this->imageRepository->find($id);
-        if (!$image) {
-            return $this->json(['error' => 'Image not found'], 404);
+        try {
+            $image = $this->getImageOrFail($id);
+            $this->imageManager->deleteImage($image);
+            return new JsonResponse(status: Response::HTTP_NO_CONTENT);
+        } catch (\Exception $e) {
+            return $this->errorService->jsonError($e);
         }
-
-        $this->deleteImageFiles($image->getFilename());
-
-        $this->imageRepository->remove($image, true);
-        $this->imageRepository->clearGalleryCache($id);
-        $this->cachePurger->purgeAll();
-
-
-        return $this->json(['Удалено'], 204);
     }
 
-    /**
-     * @throws InvalidArgumentException
-     */
+
     #[Route('/{id}/toggle-publish', name: 'api_admin_images_toggle_publish', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Post(
@@ -317,184 +256,50 @@ class ImageCrudController extends AbstractController
     )]
     public function togglePublish(int $id): JsonResponse
     {
-        $image = $this->imageRepository->find($id);
-        if (!$image) {
-            return $this->json(['error' => 'Image not found'], 404);
-        }
-        $image->setIsPublished(!$image->isPublished());
-        $this->imageRepository->save($image, true);
+        $image = $this->getImageOrFail($id);
+        $this->imageManager->togglePublish($image);
 
-        $this->imageRepository->clearGalleryCache($image->getId());
-
-        $this->cachePurger->purgeAll();
-
-        return $this->json($this->entityToDto($image));
+        return $this->successResponse($image);
     }
 
-    private function generateImageVersions(string $tempPath, string $fileName, int $originalWidth): void
-    {
-        $fs = new Filesystem();
-        $destSpath = $this->getParameter('images_s_dir');
-        $destMpath = $this->getParameter('images_m_dir');
-        $destLpath = $this->getParameter('images_l_dir');
 
-        if ($originalWidth >= 300) {
-            ImageRender::resize($tempPath, $destSpath . $fileName, ['webp', 90], 300, null, 'scale');
-        } else {
-            $fs->copy($tempPath, $destSpath . $fileName, false);
-        }
-
-        if ($originalWidth >= 1920) {
-            ImageRender::resize($tempPath, $destMpath . $fileName, ['webp', 90], 1920, null, 'scale');
-        } else {
-            $fs->copy($tempPath, $destMpath . $fileName, false);
-        }
-
-        if ($originalWidth >= 5760) {
-            ImageRender::resize($tempPath, $destLpath . $fileName, ['jpeg', 60], 5760, null, 'scale');
-        } else {
-            $fs->copy($tempPath, $destLpath . $fileName, false);
-        }
-    }
-
-    private function deleteImageFiles(?string $filename): void
-    {
-        if (!$filename) {
-            return;
-        }
-
-        $fs = new Filesystem();
-        $paths = [
-            $this->getParameter('images_s_dir') . $filename,
-            $this->getParameter('images_m_dir') . $filename,
-            $this->getParameter('images_l_dir') . $filename
-        ];
-
-        foreach ($paths as $path) {
-            if ($fs->exists($path)) {
-                $fs->remove($path);
-            }
-        }
-    }
-
-    /**
-     * @param mixed $uploadedFile
-     * @param string $fileName
-     * @return void
-     */
-    public function extracted(mixed $uploadedFile, string $fileName): void
-    {
-        $tempDir = $_ENV['TEMP_DIR'] ?? $this->getParameter('kernel.project_dir') . '/var/tmp/';
-
-        $fs = new Filesystem();
-        $fs->mkdir($tempDir);
-
-        $tempPath = $uploadedFile->move($tempDir, $fileName);
-        $imageInfo = getimagesize($tempPath);
-        $width = $imageInfo[0];
-
-        // Генерация 3 размеров
-        $this->generateImageVersions($tempPath, $fileName, $width);
-        $fs->remove($tempPath);
-    }
-
-    private function processVideos(Image $image, $videosData): void
-    {
-        if (is_string($videosData)) {
-            $videosData = json_decode($videosData, true);
-        }
-
-        foreach ($videosData as $videoData) {
-            $video = isset($videoData['id'])
-                ? $this->videoRepository->find($videoData['id'])
-                : new Video();
-
-            $video->setTitle($videoData['title'] ?? '');
-            $video->setYoutubeUrl($videoData['youtube_url'] ?? '');
-            $video->setImage($image->getParentId() ?: $image);
-
-            $this->videoRepository->save($video, false);
-        }
-    }
-    private function entityToDto(Image $image): ImageOutputDto
-    {
-        $dto = new ImageOutputDto(
-            $image->getId(),
-            $image->getFilename(),
-            $image->getDescription(),
-            $image->isFeatured(),
-            $image->isPublished(),
-            $image->getParentId()?->getId()
-        );
-
-        if (!$image->getVideos()->isEmpty()) {
-            foreach ($image->getVideos() as $video) {
-                $videoDto = new VideoDto();
-                $videoDto->id = $video->getId();
-                $videoDto->title = $video->getTitle();
-                $videoDto->youtubeUrl = $video->getYoutubeUrl();
-                $videoDto->imageId = $video->getImage()?->getId();
-
-                // Если нужно добавить изображение, используем существующий GalleryImageDto
-                if ($video->getImage()) {
-                    $videoDto->image = $this->convertToGalleryImageDto($video->getImage());
-                }
-
-                $dto->videos[] = $videoDto;
-            }
-        }
-
-        return $dto;
-    }
 
     #[Route('/{id}/metadata', name: 'api_admin_images_update_metadata', methods: ['PATCH'])]
     #[IsGranted('ROLE_ADMIN')]
     public function updateMetadata(Request $request, int $id): JsonResponse
     {
-        $image = $this->imageRepository->find($id);
-        if (!$image) {
-            return $this->json(['error' => 'Image not found'], Response::HTTP_NOT_FOUND);
-        }
-
-        $parsedData = $this->multipartParser->parse($request);
-        $data = $parsedData['data'];
-
         try {
-            // Обновление полей
-            if (array_key_exists('description', $data)) {
-                $image->setDescription($data['description']);
-            }
+            $image = $this->getImageOrFail($id);
+            $parsedData = $this->multipartParser->parse($request);
+            $data = $parsedData['data'];
 
+            $this->imageManager->updateMetadata(
+                $image,
+                $data['description'] ?? null,
+                $data['isFeatured'] ?? true,
+                $data['isPublished'] ?? null
+            );
 
-            $image->setIsFeatured(true);
-
-
-            if (array_key_exists('isPublished', $data)) {
-                $image->setIsPublished(filter_var($data['isPublished'], FILTER_VALIDATE_BOOLEAN));
-            }
-
-            $this->imageRepository->save($image, true);
-            $this->imageRepository->clearGalleryCache($image->getId());
-
-            $this->cachePurger->purgeAll();
-
-            return $this->json($this->entityToDto($image));
+            return $this->successResponse($image);
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (InvalidArgumentException | TransportExceptionInterface $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return $this->errorService->jsonError($e);
         }
     }
-    private function convertToGalleryImageDto(Image $image): GalleryImageDto
-    {
-        $dto = new GalleryImageDto();
-        $dto->id = $image->getId();
-        $dto->filename = $image->getFilename();
-        $dto->description = $image->getDescription();
-        $dto->links = [
-            'self' => $this->generateUrl('api_admin_images_show', ['id' => $image->getId()])
-        ];
 
-        return $dto;
+    private function getImageOrFail(int $id): Image
+    {
+        $image = $this->imageRepository->find($id);
+        if (!$image) {
+            throw new NotFoundHttpException('Image not found');
+        }
+        return $image;
+    }
+
+    private function successResponse(Image $image, int $status = 200): JsonResponse
+    {
+        return $this->json(
+            $this->dtoMapper->convertImageToDto($image),
+            $status
+        );
     }
 }

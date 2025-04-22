@@ -2,11 +2,12 @@
 
 namespace App\Service;
 
+use App\Service\Interface\MultipartParserInterface;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 
-class MultipartRequestParser
+class MultipartRequestParser implements MultipartParserInterface
 {
     public function parse(Request $request): array
     {

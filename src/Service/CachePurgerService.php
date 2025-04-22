@@ -2,11 +2,12 @@
 
 namespace App\Service;
 
+use App\Service\Interface\CachePurgerInterface;
 use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
 
-class CachePurgerService
+class CachePurgerService implements CachePurgerInterface
 {
     private string $cachePath;
     private Filesystem $filesystem;

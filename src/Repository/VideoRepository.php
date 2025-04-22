@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Video;
+use App\Repository\Interface\VideoRepositoryInterface;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
@@ -17,7 +18,7 @@ use RedisException;
  * @method Video[]    findAll()
  * @method Video[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
  */
-class VideoRepository extends ServiceEntityRepository
+class VideoRepository extends ServiceEntityRepository implements VideoRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -27,7 +28,7 @@ class VideoRepository extends ServiceEntityRepository
     /**
      * Сохраняет видео в базе данных
      */
-    public function save(Video $entity, bool $flush = false): void
+    public function save($entity, bool $flush = false): void
     {
         $this->getEntityManager()->persist($entity);
 
@@ -39,70 +40,12 @@ class VideoRepository extends ServiceEntityRepository
     /**
      * Удаляет видео из базы данных
      */
-    public function remove(Video $entity, bool $flush = false): void
+    public function remove($entity, bool $flush = false): void
     {
         $this->getEntityManager()->remove($entity);
 
         if ($flush) {
             $this->getEntityManager()->flush();
-        }
-    }
-
-    /**
-     * Находит видео по ID изображения
-     *
-     * @return Video[]
-     */
-    public function findByImageId(int $imageId): array
-    {
-        return $this->createQueryBuilder('v')
-            ->andWhere('v.image = :imageId')
-            ->setParameter('imageId', $imageId)
-            ->getQuery()
-            ->enableResultCache(2629800000, 'videos_for_image_' . $imageId)
-            ->getResult();
-    }
-
-    /**
-     * Находит все видео с кэшированием
-     *
-     * @return Video[]
-     */
-    public function findAllCached(): array
-    {
-        return $this->createQueryBuilder('v')
-            ->getQuery()
-            ->enableResultCache(2629800000, 'all_videos')
-            ->getResult();
-    }
-
-
-
-    /**
-     * Очищает кэш видео в Redis по ID видео
-     * @param int|null $videoId ID видео (null - очищает весь кеш видео)
-     * @throws RedisException
-     */
-    public function clearVideoCache(?int $videoId = null): void
-    {
-        $cache = $this->getEntityManager()->getConfiguration()->getResultCache();
-
-        if (!$cache instanceof \Redis && !$cache instanceof \Predis\Client) {
-            return;
-        }
-
-        if ($videoId === null) {
-            // Очищаем все ключи вида 'videos_*' (используем SCAN для больших БД)
-            $iterator = null;
-            do {
-                $keys = $cache->scan($iterator, 'videos_*', 1000);
-                if (!empty($keys)) {
-                    $cache->del($keys);
-                }
-            } while ($iterator > 0);
-        } else {
-            // Очищаем конкретный ключ видео
-            $cache->del(['videos_' . $videoId]);
         }
     }
 }

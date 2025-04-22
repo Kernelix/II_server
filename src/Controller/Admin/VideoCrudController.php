@@ -2,20 +2,20 @@
 
 namespace App\Controller\Admin;
 
-use App\Dto\Video\VideoDto;
-use App\Dto\Gallery\GalleryImageDto;
+
 use App\Entity\Video;
-use App\Repository\VideoRepository;
-use App\Repository\ImageRepository;
+use App\Repository\Interface\ImageRepositoryInterface;
+use App\Repository\Interface\VideoRepositoryInterface;
 use App\Service\CachePurgerService;
-use App\Service\MultipartRequestParser;
+use App\Service\Interface\DtoMapperInterface;
+use App\Service\Interface\ErrorHandlerInterface;
+use App\Service\Interface\MultipartParserInterface;
 use OpenApi\Attributes as OA;
-use Psr\Cache\InvalidArgumentException;
-use RedisException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -25,10 +25,12 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class VideoCrudController extends AbstractController
 {
     public function __construct(
-        private readonly VideoRepository $videoRepository,
-        private readonly ImageRepository $imageRepository,
-        private readonly MultipartRequestParser $multipartParser,
-        private readonly CachePurgerService $cachePurger
+        private readonly VideoRepositoryInterface $videoRepository,
+        private readonly ImageRepositoryInterface $imageRepository,
+        private readonly CachePurgerService $cachePurger,
+        private readonly DtoMapperInterface $dtoMapper,
+        private readonly ErrorHandlerInterface $errorService,
+        private readonly MultipartParserInterface $multipartParser
     ) {
     }
 
@@ -57,11 +59,14 @@ class VideoCrudController extends AbstractController
     public function index(): JsonResponse
     {
         $videos = $this->videoRepository->findAll();
-        $dtos = array_map([$this, 'entityToDto'], $videos);
+        $result = [];
+        foreach ($videos as $video) {
+            $result[] = $this->dtoMapper->convertVideoToDto($video);
+        }
 
         return $this->json([
             'status' => 'success',
-            'data' => $dtos,
+            'data' => $result,
             'count' => count($videos)
         ]);
     }
@@ -165,17 +170,14 @@ class VideoCrudController extends AbstractController
             }
 
             $this->videoRepository->save($video, true);
-            $this->imageRepository->clearGalleryCache($video->getImage()?->getId());
             $this->cachePurger->purgeAll();
 
             return $this->json(
-                $this->entityToDto($video),
+                $this->dtoMapper->convertVideoToDto($video),
                 Response::HTTP_CREATED
             );
-        } catch (InvalidArgumentException $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->errorService->jsonError($e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -210,12 +212,9 @@ class VideoCrudController extends AbstractController
     )]
     public function show(int $id): JsonResponse
     {
-        $video = $this->videoRepository->find($id);
-        if (!$video) {
-            return $this->json(['error' => 'Видео не найдено'], Response::HTTP_NOT_FOUND);
-        }
+        $video = $this->getVideoOrFail($id);
 
-        return $this->json($this->entityToDto($video));
+        return $this->json($this->dtoMapper->convertVideoToDto($video));
     }
 
     #[Route('/{id}', name: 'api_admin_videos_update', methods: ['PATCH'])]
@@ -273,10 +272,7 @@ class VideoCrudController extends AbstractController
     )]
     public function update(Request $request, int $id): JsonResponse
     {
-        $video = $this->videoRepository->find($id);
-        if (!$video) {
-            return $this->json(['error' => 'Video not found'], Response::HTTP_NOT_FOUND);
-        }
+        $video = $this->getVideoOrFail($id);
 
         $parsedData = $this->multipartParser->parse($request);
         $data = $parsedData['data'];
@@ -296,23 +292,17 @@ class VideoCrudController extends AbstractController
             }
 
             $this->videoRepository->save($video, true);
-            $this->imageRepository->clearGalleryCache($video->getImage()?->getId());
             $this->cachePurger->purgeAll();
-            return $this->json($this->entityToDto($video));
+            return $this->json($this->dtoMapper->convertVideoToDto($video));
         } catch (\InvalidArgumentException $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (\Exception $e) {
-            return $this->json(['error' => 'Server error'], Response::HTTP_INTERNAL_SERVER_ERROR);
-        } catch (InvalidArgumentException $e) {
-            return $this->json(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+            return $this->errorService->jsonError($e->getMessage(), Response::HTTP_BAD_REQUEST);
+        } catch (\Exception) {
+            return $this->errorService->jsonError('Server error', Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
 
-    /**
-     * @throws RedisException
-     * @throws InvalidArgumentException
-     */
+
     #[Route('/{id}', name: 'api_admin_videos_delete', methods: ['DELETE'])]
     #[OA\Delete(
         summary: 'Удалить видео',
@@ -343,14 +333,9 @@ class VideoCrudController extends AbstractController
     )]
     public function delete(int $id): JsonResponse
     {
-        $video = $this->videoRepository->find($id);
-        if (!$video) {
-            return $this->json(['error' => 'Видео не найдено'], Response::HTTP_NOT_FOUND);
-        }
+        $video = $this->getVideoOrFail($id);
 
         $this->videoRepository->remove($video, true);
-        $this->videoRepository->clearVideoCache($video->getId());
-        $this->imageRepository->clearGalleryCache($video->getImage()?->getId());
         $this->cachePurger->purgeAll();
         return $this->json(null, Response::HTTP_NO_CONTENT);
     }
@@ -379,33 +364,6 @@ class VideoCrudController extends AbstractController
         throw new \InvalidArgumentException('Неверный формат YouTube ссылки');
     }
 
-    /**
-     * Преобразует сущность Video в VideoDto
-     */
-    private function entityToDto(Video $video): VideoDto
-    {
-        $dto = new VideoDto();
-        $dto->id = $video->getId();
-        $dto->title = $video->getTitle();
-        $dto->youtubeUrl = $video->getYoutubeUrl();
-        $dto->imageId = $video->getImage()?->getId();
-
-        if ($video->getImage()) {
-            $imageDto = new GalleryImageDto();
-            $imageDto->id = $video->getImage()->getId();
-            $imageDto->filename = $video->getImage()->getFilename();
-            $imageDto->description = $video->getImage()->getDescription();
-            $imageDto->links = [
-                'self' => $this->generateUrl('api_admin_images_show', [
-                    'id' => $video->getImage()->getId()
-                ])
-            ];
-
-            $dto->image = $imageDto;
-        }
-
-        return $dto;
-    }
 
 
     private function handleImageAssociation(Video $video, $imageId): void
@@ -420,5 +378,14 @@ class VideoCrudController extends AbstractController
             throw new \InvalidArgumentException('Image not found');
         }
         $video->setImage($image);
+    }
+
+    private function getVideoOrFail(int $id): Video
+    {
+        $video = $this->videoRepository->find($id);
+        if (!$video) {
+            throw new NotFoundHttpException('Видео не найдено');
+        }
+        return $video;
     }
 }
