@@ -13,10 +13,16 @@ class VideoProcessor implements VideoProcessorInterface
         private readonly videoRepository $videoRepository
     ) {
     }
-    public function processVideos(Image $image, $videosData): void
+    public function processVideos(Image $image, array|string $videosData): void
     {
         if (is_string($videosData)) {
-            $videosData = json_decode($videosData, true);
+            $decoded = json_decode($videosData, true);
+
+            if (!is_array($decoded)) {
+                throw new \InvalidArgumentException('Invalid videos JSON format');
+            }
+
+            $videosData = $decoded;
         }
 
         foreach ($videosData as $videoData) {

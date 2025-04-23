@@ -9,7 +9,6 @@ use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
- * @method Image|null find($id, $lockMode = null, $lockVersion = null)
  * @method Image|null findOneBy(array $criteria, array $orderBy = null)
  * @method Image[]    findAll()
  * @method Image[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
@@ -77,5 +76,13 @@ class ImageRepository extends ServiceEntityRepository implements ImageRepository
         }
 
         return $image;
+    }
+
+    public function find(
+        $id,
+        $lockMode = null,
+        $lockVersion = null
+    ): ?Image {
+        return parent::find($id, $lockMode, $lockVersion);
     }
 }
