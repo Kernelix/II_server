@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Service\Interface;
 
 use App\Dto\Image\ImageOutputDto;
