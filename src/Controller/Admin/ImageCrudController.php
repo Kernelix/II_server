@@ -8,12 +8,12 @@ use App\Service\Interface\DtoMapperInterface;
 use App\Service\Interface\ErrorHandlerInterface;
 use App\Service\Interface\ImageManagerInterface;
 use App\Service\Interface\MultipartParserInterface;
+use Assert\Assert;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -120,7 +120,7 @@ class ImageCrudController extends AbstractController
                 description: 'Успешный ответ',
                 content: new OA\JsonContent(ref: '#/components/schemas/Image')
             ),
-            new OA\Response(response: 404, description: 'Не найдено')
+            new OA\Response(response: 422, description: 'Изображение не найдено')
         ]
     )]
     public function show(int $id): JsonResponse
@@ -196,13 +196,13 @@ class ImageCrudController extends AbstractController
                         ]
                 )
             ),
-            new OA\Response(response: 404, description: 'Не найдено')
+            new OA\Response(response: 422, description: 'Изображение не найдено')
         ]
     )]
     public function update(Request $request, int $id): JsonResponse
     {
+        $image = $this->getImageOrFail($id);
         try {
-            $image = $this->getImageOrFail($id);
             $parsedData = $this->multipartParser->parse($request);
 
             $this->imageManager->updateImage(
@@ -225,13 +225,13 @@ class ImageCrudController extends AbstractController
         parameters: [new OA\Parameter(name: 'id', in: 'path')],
         responses: [
             new OA\Response(response: 204, description: 'Удалено'),
-            new OA\Response(response: 404, description: 'Не найдено')
+            new OA\Response(response: 422, description: 'Изображение не найдено')
         ]
     )]
     public function delete(int $id): JsonResponse
     {
+        $image = $this->getImageOrFail($id);
         try {
-            $image = $this->getImageOrFail($id);
             $this->imageManager->deleteImage($image);
             return new JsonResponse(status: Response::HTTP_NO_CONTENT);
         } catch (\Exception $e) {
@@ -251,7 +251,7 @@ class ImageCrudController extends AbstractController
                 description: 'Статус обновлен',
                 content: new OA\JsonContent(ref: '#/components/schemas/Image')
             ),
-            new OA\Response(response: 404, description: 'Не найдено')
+            new OA\Response(response: 422, description: 'Изображение не найдено')
         ]
     )]
     public function togglePublish(int $id): JsonResponse
@@ -268,8 +268,8 @@ class ImageCrudController extends AbstractController
     #[IsGranted('ROLE_ADMIN')]
     public function updateMetadata(Request $request, int $id): JsonResponse
     {
+        $image = $this->getImageOrFail($id);
         try {
-            $image = $this->getImageOrFail($id);
             $parsedData = $this->multipartParser->parse($request);
             $data = $parsedData['data'];
 
@@ -289,9 +289,8 @@ class ImageCrudController extends AbstractController
     private function getImageOrFail(int $id): Image
     {
         $image = $this->imageRepository->find($id);
-        if (!$image) {
-            throw new NotFoundHttpException('Image not found');
-        }
+        Assert::that($image)->notEmpty('Изображение не найдено');
+
         return $image;
     }
 

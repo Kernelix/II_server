@@ -74,6 +74,24 @@ nelmio_api_doc:
                                     type: integer
                                 filename:
                                     type: string
+                VideoRequest:
+                    type: object
+                    required: [ youtube_url ]
+                    properties:
+                        title:
+                            type: string
+                            example: 'Обзор продукта'
+                            maxLength: 255
+                            nullable: true
+                        youtube_url:
+                            type: string
+                            format: uri
+                            example: 'https://youtu.be/dQw4w9WgXcQ'
+                        image_id:
+                            type: integer
+                            example: 123
+                            nullable: true
+
     areas:
         path_patterns: # an array of regexps (document only routes under /api, except /api/doc)
             - '^/api'

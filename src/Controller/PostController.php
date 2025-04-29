@@ -2,7 +2,10 @@
 
 namespace App\Controller;
 
-use Doctrine\DBAL\Connection;
+use App\Dto\Gallery\GalleryItemDto;
+use App\Dto\Video\VideoGalleryDto;
+use App\Exception\GalleryItemNotFoundException;
+use App\Service\Interface\GalleryDataProviderInterface;
 use Doctrine\DBAL\Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -15,13 +18,11 @@ final class PostController extends AbstractController
     private const int CACHE_TTL = 2629800; // 1 месяц в секундах
 
     public function __construct(
-        private readonly Connection $connection
+        private readonly GalleryDataProviderInterface $galleryService
     ) {
     }
 
-    /**
-     * @throws Exception
-     */
+
     #[Route('/api/gallery', name: 'api_gallery_list', methods: ['GET', 'HEAD'])]
     #[OA\Get(
         path: '/api/gallery',
@@ -170,42 +171,26 @@ final class PostController extends AbstractController
     {
         $startTime = microtime(true);
 
-
-
-        $sql = "SELECT id, description, file_name FROM image 
-                WHERE parent_id IS NULL AND is_published = 1
-                ORDER BY id DESC";
-
-        $images = $this->connection->fetchAllAssociative($sql);
+        $galleryItems = $this->galleryService->getGalleryList();
 
         $data = [
-           'status' => 'success',
-           'data' => [
-               'images' => array_map(function ($img) {
-                   return [
-                       'id' => $img['id'],
-                       'description' => $img['description'],
-                       'filename' => $img['file_name'],
-                       'links' => [
-                           'self' => $this->generateUrl('api_gallery_detail', ['id' => $img['id']])
-                       ]
-                   ];
-               }, $images)
-           ],
-           'meta' => [
-               'count' => count($images),
-               'cache' => [
-                   'ttl' => self::CACHE_TTL
-               ]
-                ]
-            ];
+            'status' => 'success',
+            'data' => [
+                'images' => array_map(
+                    fn (GalleryItemDto $dto) => $this->mapGalleryItemToArray($dto),
+                    $galleryItems
+                )
+            ],
+            'meta' => [
+                'count' => count($galleryItems),
+                'cache' => ['ttl' => self::CACHE_TTL]
+            ]
+        ];
 
         return $this->extracted($data, $startTime, $request);
     }
 
-    /**
-     * @throws Exception
-     */
+
     #[Route('/api/gallery/{id}', name: 'api_gallery_detail', methods: ['GET', 'HEAD'])]
     #[OA\Get(
         path: '/api/gallery/{id}',
@@ -405,70 +390,58 @@ final class PostController extends AbstractController
     {
         $startTime = microtime(true);
 
+        try {
+            $result = $this->galleryService->getGalleryDetail($id);
 
-        // Основное изображение
-        $parent = $this->connection->fetchAssociative(
-            "SELECT id, description, file_name FROM image WHERE id = ?",
-            [$id]
-        );
-
-        if (!$parent) {
-            throw $this->createNotFoundException('Изображение не найдено');
-        }
-
-        // Дочерние изображения
-        $children = $this->connection->fetchAllAssociative(
-            "SELECT id, description, file_name FROM image WHERE parent_id = ?",
-            [$id]
-        );
-
-        // Видео
-        $videos = $this->connection->fetchAllAssociative(
-            "SELECT id, title, youtube_url FROM video WHERE image_id = ?",
-            [$id]
-        );
-
-        $data =  [
+            $data = [
                 'status' => 'success',
                 'data' => [
-                    'parentImage' => [
-                        'id' => $parent['id'],
-                        'description' => $parent['description'],
-                        'filename' => $parent['file_name'],
-                        'links' => [
-                            'self' => $this->generateUrl('api_gallery_detail', ['id' => $parent['id']])
-                        ]
-                    ],
-                    'childImages' => array_map(function ($img) {
-                        return [
-                            'id' => $img['id'],
-                            'description' => $img['description'],
-                            'filename' => $img['file_name'],
-                            'links' => [
-                                'self' => $this->generateUrl('api_gallery_detail', ['id' => $img['id']])
-                            ]
-                        ];
-                    }, $children),
-                    'videos' => array_map(function ($video) {
-                        return [
-                            'id' => $video['id'],
-                            'title' => $video['title'],
-                            'youtubeUrl' => $video['youtube_url'],
-                            'links' => [
-                                'source' => $video['youtube_url']
-                            ]
-                        ];
-                    }, $videos)
+                    'parentImage' => $this->mapGalleryItemToArray($result['parent']),
+                    'childImages' => array_map(
+                        fn (GalleryItemDto $dto) => $this->mapGalleryItemToArray($dto),
+                        $result['children']
+                    ),
+                    'videos' => array_map(
+                        fn (VideoGalleryDto $dto) => $this->mapVideoToArray($dto),
+                        $result['videos']
+                    )
                 ],
                 'meta' => [
-                    'cache' => [
-                        'ttl' => self::CACHE_TTL
-                    ]
+                    'cache' => ['ttl' => self::CACHE_TTL]
                 ]
             ];
 
+            return $this->extracted($data, $startTime, $request);
+        } catch (GalleryItemNotFoundException $e) {
+            return $this->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 404);
+        }
+    }
 
-        return $this->extracted($data, $startTime, $request);
+    private function mapGalleryItemToArray(GalleryItemDto $dto): array
+    {
+        return [
+            'id' => $dto->id,
+            'description' => $dto->description,
+            'filename' => $dto->filename,
+            'links' => [
+                'self' => $this->generateUrl('api_gallery_detail', ['id' => $dto->id])
+            ]
+        ];
+    }
+
+    private function mapVideoToArray(VideoGalleryDto $dto): array
+    {
+        return [
+            'id' => $dto->id,
+            'title' => $dto->title,
+            'youtubeUrl' => $dto->youtubeUrl,
+            'links' => [
+                'source' => $dto->youtubeUrl
+            ]
+        ];
     }
 
     /**
@@ -479,7 +452,7 @@ final class PostController extends AbstractController
      */
     public function extracted(mixed $data, $startTime, Request $request): JsonResponse
     {
-        $etag = hash('xxh128', json_encode($data));
+        $etag = hash('xxh128', serialize($data));
         $data['meta']['query_time'] = round(microtime(true) - $startTime, 4) . 's';
 
         if ($request->isMethodCacheable() && $request->headers->get('If-None-Match') === $etag) {

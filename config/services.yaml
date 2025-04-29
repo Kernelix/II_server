@@ -12,6 +12,11 @@ parameters:
     env(NGINX_BASE_URL): 'http://nginx'
     nginx_cache_path: '/var/cache/nginx/client'
 services:
+    App\Service\Interface\GalleryDataProviderInterface:
+        class: App\Service\GalleryService
+        arguments:
+            - '@doctrine.dbal.default_connection'
+
     App\EventSubscriber\AdminLogoutSubscriber:
         tags: [ kernel.event_subscriber ]
 
